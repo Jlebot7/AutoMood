@@ -1,0 +1,36 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Caches and test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environments and Secrets (Never commit credentials)
+.env
+.env.*
+!.env.example
+*.env
+moodle_assistant/.env
+
+# Browser Profiles and Temporary Automation Data
+chrome_profile/
+temp_test_sel/
+testpage/
+scratch/
+*.log
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+
+# Operating System files
+.DS_Store
+Thumbs.db
+desktop.ini
