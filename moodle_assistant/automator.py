@@ -25,6 +25,7 @@ from .models import (
     ActionExecutionResult,
 )
 from .dom_parser import DOMParser, JS_EXTRACTOR_SCRIPT
+from .media_processor import AudioTranscriber, ImageOCREngine
 
 logger = logging.getLogger("moodle_assistant.automator")
 
@@ -67,6 +68,12 @@ class MoodleAutomator:
         self.config = cfg
         self.browser: Optional[uc.Browser] = None
         self._tab: Optional[uc.Tab] = None
+        self.audio_transcriber: Optional[AudioTranscriber] = None
+        self.image_ocr: Optional[ImageOCREngine] = None
+        if getattr(self.config, "enable_audio_transcription", False):
+            self.audio_transcriber = AudioTranscriber(self.config)
+        if getattr(self.config, "enable_image_ocr", False):
+            self.image_ocr = ImageOCREngine(self.config)
 
     async def start(self) -> None:
         """Inicia la instancia de Chrome con el perfil de usuario especificado."""
@@ -266,17 +273,106 @@ class MoodleAutomator:
             raw_str = await self.evaluate_in_tab(JS_EXTRACTOR_SCRIPT)
             if not raw_str:
                 return []
-            return DOMParser.parse_raw_extracted_list(raw_str)
+            questions = DOMParser.parse_raw_extracted_list(raw_str)
+            if getattr(self.config, "enable_audio_transcription", False) or getattr(self.config, "enable_image_ocr", False):
+                await self.process_questions_media(questions)
+            return questions
         except Exception as e:
             logger.error(f"Error al evaluar script extractor en CDP: {e}")
             try:
                 # Reintento forzoso
                 await self.get_active_tab(force_refresh=True)
                 raw_str = await self.evaluate_in_tab(JS_EXTRACTOR_SCRIPT)
-                return DOMParser.parse_raw_extracted_list(raw_str)
+                questions = DOMParser.parse_raw_extracted_list(raw_str)
+                if getattr(self.config, "enable_audio_transcription", False) or getattr(self.config, "enable_image_ocr", False):
+                    await self.process_questions_media(questions)
+                return questions
             except Exception as e2:
                 logger.error(f"Reintento fallido en extracción CDP: {e2}")
                 return []
+
+    async def fetch_media_as_bytes(self, url: str) -> Optional[bytes]:
+        """
+        Descarga un recurso binario (audio o imagen) desde la página de Moodle
+        utilizando fetch() con credentials: 'include' para preservar cookies de sesión,
+        retornando los bytes decodificados desde base64.
+        """
+        if not url:
+            return None
+        fetch_js = f"""
+        (async () => {{
+            try {{
+                const res = await fetch({repr(url)}, {{ credentials: 'include' }});
+                if (!res.ok) return null;
+                const blob = await res.blob();
+                return new Promise((resolve) => {{
+                    const reader = new FileReader();
+                    reader.onloadend = () => {{
+                        const base64 = reader.result ? reader.result.split(',')[1] : null;
+                        resolve(base64);
+                    }};
+                    reader.onerror = () => resolve(null);
+                    reader.readAsDataURL(blob);
+                }});
+            }} catch(e) {{
+                return null;
+            }}
+        }})()
+        """
+        try:
+            b64_str = await self.evaluate_in_tab(fetch_js, await_promise=True)
+            if b64_str and isinstance(b64_str, str):
+                import base64
+                return base64.b64decode(b64_str)
+        except Exception as e:
+            logger.warning(f"Error descargando recurso multimedia ({url}): {e}")
+        return None
+
+    async def process_questions_media(self, questions: List[QuestionData]) -> None:
+        """
+        Descarga y procesa automáticamente recursos multimedia detectados en las preguntas:
+        transcribe audios con Whisper y extrae texto de imágenes con OCR.
+        """
+        for q in questions:
+            # 1. Transcripción de audios (Listening tests)
+            if getattr(self.config, "enable_audio_transcription", False) and q.media_context.audio_urls:
+                if not self.audio_transcriber:
+                    self.audio_transcriber = AudioTranscriber(self.config)
+
+                for aud_url in q.media_context.audio_urls:
+                    try:
+                        logger.info(f"Descargando audio para {q.number}: {aud_url}")
+                        aud_bytes = await self.fetch_media_as_bytes(aud_url)
+                        if aud_bytes:
+                            clean_fname = aud_url.split("?")[0].split("/")[-1] or "audio.mp3"
+                            if not clean_fname.endswith((".mp3", ".wav", ".ogg", ".m4a")):
+                                clean_fname = "audio.mp3"
+                            transcript = await self.audio_transcriber.transcribe_bytes(
+                                aud_bytes, filename=clean_fname, url=aud_url
+                            )
+                            if transcript and transcript not in q.media_context.audio_transcriptions:
+                                q.media_context.audio_transcriptions.append(transcript)
+                    except Exception as exc:
+                        logger.warning(f"No se pudo procesar audio en {q.number}: {exc}")
+
+            # 2. Extracción OCR de imágenes
+            if getattr(self.config, "enable_image_ocr", False) and q.media_context.image_urls:
+                if not self.image_ocr:
+                    self.image_ocr = ImageOCREngine(self.config)
+
+                for img_url in q.media_context.image_urls:
+                    try:
+                        logger.info(f"Descargando imagen para OCR en {q.number}: {img_url}")
+                        img_bytes = await self.fetch_media_as_bytes(img_url)
+                        if img_bytes:
+                            clean_fname = img_url.split("?")[0].split("/")[-1] or "image.png"
+                            ocr_text = await self.image_ocr.extract_text_from_bytes(
+                                img_bytes, filename=clean_fname, url=img_url
+                            )
+                            if ocr_text and ocr_text not in q.media_context.ocr_texts:
+                                q.media_context.ocr_texts.append(ocr_text)
+                    except Exception as exc:
+                        logger.warning(f"No se pudo procesar OCR en {q.number}: {exc}")
 
     async def scroll_into_view(self, selector: str) -> bool:
         """Desplaza suavemente la ventana hasta el elemento indicado."""
