@@ -44,9 +44,16 @@ class SubQuestion(BaseModel):
 
 
 class MediaContext(BaseModel):
-    """Información enriquecida sobre elementos multimedia, fórmulas y tablas."""
+    """Información enriquecida sobre elementos multimedia, fórmulas, tablas, audios y OCR."""
     has_images: bool = Field(default=False)
+    image_urls: List[str] = Field(default_factory=list, description="URLs de imágenes relevantes extraídas del DOM")
     image_descriptions: List[str] = Field(default_factory=list, description="Textos alternativos o títulos de imágenes")
+    ocr_texts: List[str] = Field(default_factory=list, description="Texto y fórmulas extraídos de imágenes vía OCR / Visión")
+
+    has_audio: bool = Field(default=False)
+    audio_urls: List[str] = Field(default_factory=list, description="URLs de archivos de audio extraídos del DOM")
+    audio_transcriptions: List[str] = Field(default_factory=list, description="Transcripciones obtenidas vía Whisper")
+
     equations: List[str] = Field(default_factory=list, description="Fórmulas LaTeX/MathML detectadas")
     tables: List[str] = Field(default_factory=list, description="Representación en texto de tablas de datos")
 
