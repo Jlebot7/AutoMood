@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
@@ -117,6 +117,34 @@ class Settings(BaseModel):
         default_factory=lambda: os.getenv("HUMAN_TYPING", "true").strip().lower() in ("true", "1", "yes")
     )
 
+    # Configuración de Whisper (Transcripción de Audio)
+    enable_audio_transcription: bool = Field(
+        default_factory=lambda: os.getenv("ENABLE_AUDIO_TRANSCRIPTION", "true").strip().lower() in ("true", "1", "yes")
+    )
+    whisper_provider: str = Field(
+        default_factory=lambda: os.getenv("WHISPER_PROVIDER", "auto").strip().lower()
+    )
+    whisper_model: str = Field(
+        default_factory=lambda: os.getenv("WHISPER_MODEL", "whisper-large-v3").strip()
+    )
+    openai_api_key: str = Field(
+        default_factory=lambda: os.getenv("OPENAI_API_KEY", "").strip()
+    )
+
+    # Configuración de OCR (Extracción de texto desde imágenes)
+    enable_image_ocr: bool = Field(
+        default_factory=lambda: os.getenv("ENABLE_IMAGE_OCR", "true").strip().lower() in ("true", "1", "yes")
+    )
+    ocr_provider: str = Field(
+        default_factory=lambda: os.getenv("OCR_PROVIDER", "auto").strip().lower()
+    )
+    groq_vision_model: str = Field(
+        default_factory=lambda: os.getenv("GROQ_VISION_MODEL", "llama-3.2-11b-vision-preview").strip()
+    )
+    ocr_languages: List[str] = Field(
+        default_factory=lambda: [lang.strip() for lang in os.getenv("OCR_LANGUAGES", "es,en").split(",") if lang.strip()]
+    )
+
     # URL inicial opcional
     moodle_url: Optional[str] = Field(
         default_factory=lambda: os.getenv("MOODLE_URL", None) or None
@@ -126,6 +154,10 @@ class Settings(BaseModel):
         """Verifica si la clave API de Groq ha sido configurada adecuadamente."""
         return bool(self.groq_api_key and not self.groq_api_key.startswith("your_") and not self.groq_api_key.startswith("tu_"))
 
+    def is_openai_configured(self) -> bool:
+        """Verifica si la clave API de OpenAI ha sido configurada adecuadamente."""
+        return bool(self.openai_api_key and not self.openai_api_key.startswith("your_") and not self.openai_api_key.startswith("tu_"))
+
     def resolve_user_data_dir(self) -> Path:
         """Retorna la ruta absoluta del directorio de perfil de Chrome."""
         p = Path(self.chrome_user_data_dir)
@@ -134,6 +166,9 @@ class Settings(BaseModel):
         p.mkdir(parents=True, exist_ok=True)
         return p
 
+
+# Alias para compatibilidad de nomenclatura
+AppConfig = Settings
 
 # Instancia singleton de configuración
 settings = Settings()
