@@ -80,6 +80,19 @@ def print_config_status(cfg: Settings) -> None:
     table.add_row("Perfil Chrome", str(cfg.resolve_user_data_dir()), "[dim]Persistente[/dim]")
     table.add_row("Delay Humano", f"{cfg.human_delay_min}s - {cfg.human_delay_max}s", "[dim]Activo[/dim]")
 
+    # Whisper Audio & OCR Status
+    if getattr(cfg, "enable_audio_transcription", False):
+        whisper_info = f"{cfg.whisper_provider} ({cfg.whisper_model})"
+        table.add_row("Audio Whisper", whisper_info, "[green]Activo[/green]")
+    else:
+        table.add_row("Audio Whisper", "Desactivado", "[dim]Inactivo[/dim]")
+
+    if getattr(cfg, "enable_image_ocr", False):
+        ocr_info = f"{cfg.ocr_provider} ({','.join(cfg.ocr_languages)})"
+        table.add_row("OCR Imágenes", ocr_info, "[green]Activo[/green]")
+    else:
+        table.add_row("OCR Imágenes", "Desactivado", "[dim]Inactivo[/dim]")
+
     console.print(table)
     console.print()
 
@@ -190,9 +203,20 @@ def render_questions_table(questions: List[QuestionData], answers: List[LLMRespo
         if len(clean_p) > 120:
             clean_p = clean_p[:117] + "..."
 
+        type_badge = q.qtype.value
+        if q.media_context.has_audio:
+            if q.media_context.audio_transcriptions:
+                type_badge += "\n[cyan]🎧 Audio (OK)[/cyan]"
+            else:
+                type_badge += "\n[dim cyan]🎧 Audio[/dim cyan]"
+        if q.media_context.ocr_texts:
+            type_badge += "\n[green]🖼️ OCR (OK)[/green]"
+        elif q.media_context.image_urls:
+            type_badge += "\n[dim green]🖼️ Imagen[/dim green]"
+
         table.add_row(
             f"{q.number}\n({q.question_id})",
-            q.qtype.value,
+            type_badge,
             clean_p,
             suggested_text,
             reasoning,
