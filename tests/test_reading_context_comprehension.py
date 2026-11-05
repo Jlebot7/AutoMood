@@ -99,20 +99,29 @@ async def main():
 
     correct_count = 0
     total = len(expected)
+    # Crear un mapa rápido de id/valor -> texto de opción para verificar
+    id_to_text = {}
+    for sq in sub_questions:
+        for opt in sq.options:
+            id_to_text[opt.id] = opt.text
+            id_to_text[opt.value] = opt.text
+            id_to_text[opt.text] = opt.text
+
     for qid, exp_text in expected.items():
         got = ans.matching_answers.get(qid, "")
+        got_text = id_to_text.get(got, got)
         # Comprobación estricta (no debe elegir 've ni 's)
-        is_correct = (got.strip().lower() == exp_text.strip().lower())
+        is_correct = (got_text.strip().lower() == exp_text.strip().lower())
         mark = "✓" if is_correct else "✗"
         if is_correct:
             correct_count += 1
-        print(f"  {mark} {qid}: Obtenido='{got}' | Esperado='{exp_text}'")
+        print(f"  {mark} {qid}: Obtenido='{got}' ('{got_text}') | Esperado='{exp_text}'")
 
     print(f"\nTotal acertadas: {correct_count}/{total} ({(correct_count/total)*100:.1f}%)")
-    assert ans.matching_answers.get("q3") in ("didn't have", "1"), "Pregunta 3 debe ser didn't have"
-    assert ans.matching_answers.get("q7") in ("were", "1"), "Pregunta 7 debe ser were"
-    assert ans.matching_answers.get("q13") in ("have begun", "2"), "Pregunta 13 debe ser have begun"
-    assert ans.matching_answers.get("q14") in ("have started", "2"), "Pregunta 14 debe ser have started"
+    assert id_to_text.get(ans.matching_answers.get("q3"), ans.matching_answers.get("q3")) == "didn't have", "Pregunta 3 debe ser didn't have"
+    assert id_to_text.get(ans.matching_answers.get("q7"), ans.matching_answers.get("q7")) == "were", "Pregunta 7 debe ser were"
+    assert id_to_text.get(ans.matching_answers.get("q13"), ans.matching_answers.get("q13")) == "have begun", "Pregunta 13 debe ser have begun"
+    assert id_to_text.get(ans.matching_answers.get("q14"), ans.matching_answers.get("q14")) == "have started", "Pregunta 14 debe ser have started"
 
     print("\n✓ TODAS LAS PREGUNTAS CLAVE (3, 7, 13, 14) Y EL CONTEXTO GLOBAL FUERON RESUELTOS CON ÉXITO!")
 
