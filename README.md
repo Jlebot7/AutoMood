@@ -1,49 +1,87 @@
-# 🎓 MoodleAssist-AI
+# 🎓 MoodleAssist-AI (AutoMood)
 
-Herramienta modular de escritorio y CLI para la **resolución inteligente y automatizada de cuestionarios, talleres y actividades en plataformas Moodle**. 
+Herramienta de automatización asistida por IA para la **resolución de cuestionarios, talleres y actividades académicas en plataformas Moodle**. 
 
-Combina la potencia de inferencia del modelo **`llama-3.3-70b-versatile`** a través de **AsyncGroq** con la velocidad y evasión de detección de **nodriver** (automatización asíncrona directa mediante Chrome DevTools Protocol - CDP).
+Combina la velocidad de inferencia de **Groq** (`llama-3.3-70b-versatile`), la precisión acústica de **Whisper** para listening tests, visión **OCR** local para enunciados gráficos, y la indetectabilidad de **nodriver** (CDP nativo sin WebDriver tradicional) con simulación de comportamiento y tecleo humano.
 
 ---
 
 ## 🌟 Características Principales
 
-- **⚡ Comunicación Directa CDP con `nodriver`**: Control total del navegador sin WebDriver tradicional ni binarios pesados de Selenium, indetectable frente a mecanismos anti-bot estándar.
-- **🧠 Motor de Inferencia Groq (`llama-3.3-70b-versatile`)**:
-  - Salida forzada en formato estructurado JSON (`response_format={"type": "json_object"}`).
-  - Manejo de reintentos exponenciales automáticos (*exponential backoff*) ante límites de tasa (*Rate Limits*).
-  - Prompts especializados con razonamiento académico y contextualización de fórmulas LaTeX y descripciones de imágenes.
-- **🔍 Extracción Inteligente del DOM de Moodle**:
-  - Inyección JavaScript en cliente vía CDP de alta velocidad.
-  - Soporte completo para temas Moodle Boost, Classic y personalizados.
-  - Saneamiento de textos ruidosos ("Marcar con bandera", "Puntúa como...").
-- **📋 Cobertura Completa de Tipos de Pregunta**:
-  - **Selección Múltiple y Simple** (`multichoice` con radio buttons o checkboxes).
-  - **Verdadero / Falso** (`truefalse`).
-  - **Emparejamiento / Relación de Columnas** (`match` con múltiples dropdowns).
-  - **Menús Desplegables en Texto** (`gapselect`, `selectmulti`).
-  - **Respuesta Corta y Numérica** (`shortanswer`, `numerical`).
-  - **Ensayo / Pregunta Abierta** (`essay`).
-- **🖥️ Consola Interactiva Moderna con `Rich`**:
-  - Tablas estilizadas con justificación del razonamiento de la IA y porcentaje de confianza.
-  - Modos de ejecución: **Asistido (Paso a paso con confirmación)**, **Autónomo (Full Auto)** y **Dry-Run (Solo consulta sin modificar el formulario)**.
-  - Perfil de usuario persistente (`chrome_profile`) para no tener que iniciar sesión ni validar 2FA repetidamente.
+### 🧠 1. Comprensión Lectora Global, Detección de Ejemplos y Tiempos Verbales
+- **Lectura Integral Previa**: En preguntas de lectura o textos con múltiples huecos (Cloze / `multianswer` / `gapselect`), el modelo analiza la narración completa de principio a fin antes de resolver espacios individuales.
+- **Detección Automática de Ejemplos Guía (In-Context Examples)**: Si el ejercicio incluye un ejemplo modelo (*"Example:"*, *"e.g."*, *"Modelo:"*, *"Sample answer:"* o el hueco `[0]` resuelto), el motor identifica su morfología, tiempo verbal, si incluye o no sujeto y su convención de mayúsculas/minúsculas para replicar exactamente el mismo formato.
+- **Análisis de Línea Temporal (Timeline)**:
+  - Distinción rigurosa entre oraciones de hechos pasados concluidos (**Simple Past**) y la era actual o cambios continuos (**Present Perfect**).
+  - Reconocimiento de marcadores temporales clave (*"Since..."*, *"ago"*, *"in the 1980s"*, *"today"*, *"now"*).
+- **Reglas Estrictas de Contracciones**:
+  - Aplica contracciones negativas donde corresponde (*"didn't"*, *"weren't"*, *"haven't"*).
+  - Evita contracciones afirmativas inválidas tras sustantivos (*"technology has changed"*, no *"technology 's changed"*; *"Times have changed"*, no *"Times 've changed"*).
 
 ---
 
-## 📁 Arquitectura del Proyecto
+### 🎧 2. Transcripción de Audio con Whisper (Listening Tests)
+- **Soporte Nativo para Cuestionarios de Audio**: Detecta automáticamente etiquetas `<audio>`, `<source>` y enlaces a audios (`.mp3`, `.wav`, `.ogg`, `.m4a`).
+- **Descarga Autenticada en Sesión**: Descarga archivos protegidos (`/pluginfile.php/...`) ejecutando `fetch(..., { credentials: 'include' })` dentro del contexto del navegador a Base64, preservando las cookies de sesión del estudiante sin requerir credenciales adicionales.
+- **Múltiples Proveedores**:
+  - **Groq Whisper** (`whisper-large-v3`, `whisper-large-v3-turbo`): Transcripción ultra rápida en milisegundos usando la misma API Key de Groq.
+  - **OpenAI Whisper** (`whisper-1`): Alternativa o fallback automático.
+  - **Faster-Whisper**: Opción 100% local ejecutada en CPU o GPU.
+- **Caché en Memoria**: Evita descargas o transcripciones redundantes mediante claves URL o hash SHA-256.
+
+---
+
+### 🖼️ 3. OCR de Imágenes para Contenido no Accesible
+- **Extracción de Texto y Diagramas**: Cuando los exámenes incluyen preguntas embebidas en imágenes en lugar de texto DOM accesible, el sistema extrae el enunciado para suministrarlo al LLM.
+- **EasyOCR Local**: Motor primario ligero, multilingüe (español e inglés por defecto), sin costos de API y con ejecución 100% local.
+- **OpenAI Vision Fallback (`gpt-4o-mini`)**: Respaldo en la nube para interpretar diagramas o gráficos complejos cuando se proporciona `OPENAI_API_KEY`.
+- **Filtro Inteligente de Iconos**: Descarta automáticamente imágenes decorativas, temas e iconos de interfaz (`/pix/`, `/theme/`, `.icon`, gráficos < 35x35px).
+
+---
+
+### 🎭 4. Simulación de Comportamiento Humano (Antidetección)
+- **Delays Aleatorios entre Dropdowns y Opciones**: Pausas naturales variables entre 0.8s y 2.0s (`OPTION_DELAY_MIN` / `OPTION_DELAY_MAX`) entre huecos contiguos, simulando el tiempo de lectura del estudiante.
+- **Autocompletado de Texto Natural (Pulsación Carácter por Carácter)**:
+  - Tipeo a través de eventos reales `InputEvent("input", { inputType: "insertText" })`.
+  - Velocidad variable de pulsación entre 40ms y 100ms por carácter (~50-80 PPM).
+  - Pausas cognitivas al escribir espacios y signos de puntuación (`,`, `.`, `?`, `!`, `;`).
+  - Micro-vacilaciones humanas aleatorias y aceleración progresiva en ensayos largos.
+- **Resolución Universal de Selectores**: Maneja selectores complejos de Moodle con dos puntos (`:`) o nombres especiales mediante `findElement()` tolerante a fallos.
+
+---
+
+### 📋 5. Soporte Exhaustivo de Tipos de Preguntas Moodle
+- **Selección Múltiple y Simple** (`multichoice` con radio buttons o checkboxes).
+- **Verdadero / Falso** (`truefalse`).
+- **Emparejamiento / Relación de Columnas** (`match`).
+- **Cloze / Texto con Desplegables Incrustados** (`multianswer`, `gapselect`, `selectmulti`).
+- **Respuesta Corta y Numérica** (`shortanswer`, `numerical`).
+- **Pregunta Abierta / Ensayo** (`essay`).
+
+---
+
+## 📁 Estructura del Proyecto
 
 ```text
-moodle_assistant/
-├── config.py           # Variables de entorno, timeouts, configuraciones de Groq y selectores CSS
-├── models.py           # Modelos de datos Pydantic v2 (QuestionData, LLMResponse, LogEntry, etc.)
-├── dom_parser.py       # Extracción de elementos Moodle, clasificación de preguntas y filtro multimedia
-├── llm_engine.py       # Cliente AsyncGroq con prompts optimizados y validación de JSON
-├── automator.py        # Controlador de nodriver (simulación de clicks, llenado de texto, selecciones)
-├── main.py             # CLI interactivo con rich (menu principal, pausas, reportes)
-├── requirements.txt    # Dependencias fijadas del proyecto
-└── .env.example        # Plantilla de variables de entorno
-run.py                  # Script lanzador conveniente desde la raíz
+AutoMood/
+├── moodle_assistant/
+│   ├── automator.py        # Controlador CDP con nodriver, typing humano, delays y descarga autenticada
+│   ├── config.py           # Configuración Pydantic, variables de entorno y selectores CSS
+│   ├── dom_parser.py       # Extractor del DOM, clasificación de tipos, audio e imágenes
+│   ├── llm_engine.py       # Motor AsyncGroq con prompts optimizados, lectura global y ejemplos
+│   ├── media_processor.py  # AudioTranscriber (Groq/OpenAI/Faster-Whisper) e ImageOCREngine (EasyOCR)
+│   ├── models.py           # Modelos de datos Pydantic v2 (QuestionData, MediaContext, LLMResponse)
+│   ├── main.py             # CLI interactivo con Rich (tablas, insignias, confirmación paso a paso)
+│   └── requirements.txt    # Dependencias fijadas del proyecto
+├── tests/
+│   ├── test_dom_parser.py                     # Parsing de preguntas estándar
+│   ├── test_human_delays_and_typing.py        # Simulación de delays y escritura carácter por carácter
+│   ├── test_media_extraction.py               # Extracción DOM de audio/imágenes y prompts LLM
+│   ├── test_media_processor.py                # Transcripción Whisper y extracción EasyOCR
+│   ├── test_models.py                         # Validación de modelos de datos
+│   └── test_reading_context_comprehension.py  # Comprensión de lectura, contracciones y tiempos (15/15)
+├── run.py                  # Script lanzador conveniente desde la raíz
+└── .env.example            # Plantilla completa de variables de entorno
 ```
 
 ---
@@ -51,9 +89,10 @@ run.py                  # Script lanzador conveniente desde la raíz
 ## 🚀 Requisitos e Instalación
 
 ### 1. Requisitos Previos
-- **Python 3.11+** instalado en el sistema.
-- **Google Chrome** instalado.
-- Una **API Key de Groq** gratuita (obtén una en [Groq Console](https://console.groq.com/keys)).
+- **Python 3.11+** (compatible con Python 3.11, 3.12, 3.13 y 3.14).
+- **Google Chrome** instalado en el sistema.
+- **API Key de Groq** (gratuita en [Groq Console](https://console.groq.com/keys)).
+- *(Opcional)* **API Key de OpenAI** si deseas usar OpenAI Whisper u OpenAI Vision como respaldo.
 
 ### 2. Instalación de Dependencias
 
@@ -61,84 +100,108 @@ run.py                  # Script lanzador conveniente desde la raíz
 pip install -r moodle_assistant/requirements.txt
 ```
 
-O instalando individualmente:
+O instalando los paquetes clave:
 ```bash
-pip install nodriver groq pydantic python-dotenv rich
+pip install nodriver groq openai faster-whisper easyocr pillow torch pydantic python-dotenv rich
 ```
 
 ### 3. Configuración del Archivo `.env`
 
-Copia el archivo de ejemplo o edita el archivo `.env` en la raíz o en `moodle_assistant/`:
+Copia `.env.example` como `.env` y ajusta tus preferencias:
 
 ```env
-# Clave API de Groq
+# Clave API de Groq (Obligatoria para inferencia de texto y Groq Whisper)
 GROQ_API_KEY=gsk_tu_clave_aqui
 
-# Modelo (Recomendado: llama-3.3-70b-versatile)
+# Modelo LLM de Inferencia
 GROQ_MODEL=llama-3.3-70b-versatile
 GROQ_TEMPERATURE=0.1
 GROQ_TIMEOUT=45.0
 GROQ_MAX_RETRIES=3
+
+# Transcripción de Audio (Whisper)
+ENABLE_AUDIO_TRANSCRIPTION=True
+WHISPER_PROVIDER=groq               # groq, openai, local
+WHISPER_MODEL=whisper-large-v3     # whisper-large-v3, whisper-large-v3-turbo
+
+# OCR de Imágenes
+ENABLE_IMAGE_OCR=True
+OCR_PROVIDER=easyocr               # easyocr, openai_vision
+OCR_LANGUAGES=es,en                # Idiomas para EasyOCR
+
+# Opcional: Clave API de OpenAI (solo para whisper-1 o gpt-4o-mini vision)
+# OPENAI_API_KEY=sk-...
 
 # Configuración del Navegador
 HEADLESS=False
 CHROME_USER_DATA_DIR=./chrome_profile
 HUMAN_DELAY_MIN=0.4
 HUMAN_DELAY_MAX=1.0
+OPTION_DELAY_MIN=0.8
+OPTION_DELAY_MAX=2.0
+TYPING_SPEED_MIN=0.04
+TYPING_SPEED_MAX=0.10
 
-# Opcional: URL inicial de tu campus Moodle
+# Opcional: URL directa de inicio
 # MOODLE_URL=https://campus.tuuniversidad.edu/login/index.php
 ```
 
 ---
 
-## 💻 Uso del Sistema
+## 💻 Uso del Asistente
 
-Para iniciar el asistente interactivo ejecuta:
+Ejecuta el asistente interactivo:
 
 ```bash
 python run.py
 ```
 
-O directamente el módulo:
-
-```bash
-python -m moodle_assistant.main
-```
-
 ### Flujo de Trabajo Recomendado
 
 1. **[Opción 1] Iniciar Navegador y Login en Moodle**:
-   - Se abrirá una ventana de Chrome con un perfil persistente.
-   - Inicia sesión normalmente en tu campus (puedes completar autenticaciones de 2 pasos o SSO institucional).
-   - Navega hasta el examen o taller y pulsa *Comenzar intento*.
-2. **[Opción 2] Resolver Página Actual (Modo Asistido)**:
-   - El sistema analiza las preguntas visibles.
-   - Groq evalúa el enunciado, contexto y opciones en milisegundos.
-   - Se presenta una tabla en consola con el número de pregunta, respuesta propuesta, justificación y confianza.
-   - Se solicita confirmación (`[S/n]`) antes de realizar cualquier clic o escritura en el navegador.
+   - Se abrirá una ventana de Chrome con un perfil de usuario local y persistente (`chrome_profile`).
+   - Inicia sesión normalmente en tu campus virtual (completando 2FA o SSO institucional si aplica).
+   - Accede a la actividad o cuestionario que deseas resolver.
+2. **[Opción 2] Resolver Página Actual (Modo Asistido con Confirmación)**:
+   - Extrae las preguntas visibles y descarga automáticamente audios o imágenes asociados.
+   - Groq analiza el texto, evalúa ejemplos e instrucciones de respuesta, y genera la solución.
+   - Se muestra la tabla en consola con las respuestas propuestas, justificaciones, nivel de confianza e insignias (`🎧 Audio (OK)`, `🖼️ OCR (OK)`).
+   - Puedes confirmar la aplicación automática en el navegador pulsando `y`.
 3. **[Opción 3] Resolver Cuestionario Completo (Modo Autónomo)**:
-   - Resuelve secuencialmente página por página y presiona el botón *Siguiente página* hasta finalizar.
-4. **[Opción 4] Modo Dry-Run**:
-   - Extrae y consulta al LLM mostrando las soluciones en la terminal sin tocar los elementos web. Ideal para revisión previa.
+   - Resuelve secuencialmente página por página avanzando de forma continua hasta finalizar.
+4. **[Opción 4] Modo Dry-Run (Solo Consulta)**:
+   - Consulta al LLM y muestra las soluciones en consola sin tocar ni interactuar con la página web.
 
 ---
 
-## 🧪 Pruebas Unitarias
+## 🧪 Ejecución de Pruebas Automatizadas
 
-El proyecto incluye tests unitarios para verificar cada capa:
+El proyecto cuenta con una suite completa de pruebas unitarias y de integración:
 
 ```bash
+# Modelos de datos y validaciones
 python tests/test_models.py
+
+# Extracción DOM de preguntas y filtrado
 python tests/test_dom_parser.py
-python tests/test_llm_engine.py
+
+# Delays humanizados y autocompletado carácter por carácter
+python tests/test_human_delays_and_typing.py
+
+# Comprensión lectora, detección de tiempos verbales y contracciones (100% de aciertos)
+python tests/test_reading_context_comprehension.py
+
+# Transcripción de audio con Whisper y OCR con EasyOCR
+python tests/test_media_processor.py
+
+# Extracción de recursos multimedia en DOM y prompts enriquecidos
+python tests/test_media_extraction.py
 ```
 
 ---
 
-## 🛡️ Seguridad y Consideraciones Éticas
+## 🛡️ Seguridad y Buenas Prácticas
 
-- Las contraseñas y cookies se almacenan exclusivamente de manera local en el directorio del perfil de Chrome (`chrome_profile`).
-- Las llamadas a la API de Groq envían únicamente el texto de los enunciados y opciones de las preguntas para su resolución.
-- Esta herramienta está pensada para fines pedagógicos, investigación en automatización web asistida por IA y asistencia accesible.
-
+- **Privacidad Local**: Las cookies, contraseñas de sesión y perfiles se almacenan de manera estrictamente local en la carpeta `chrome_profile/`.
+- **Datos Seguros**: El archivo `.env` está protegido en `.gitignore` para prevenir cualquier exposición accidental de credenciales.
+- **Uso Responsable**: Desarrollado con propósitos de investigación en automatización web, accesibilidad y asistencia para el aprendizaje.
