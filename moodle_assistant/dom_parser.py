@@ -62,8 +62,34 @@ JS_EXTRACTOR_SCRIPT = r"""
         const formulation = node.querySelector(".formulation, .content") || node;
         let promptText = "";
         const imageDescriptions = [];
+        const imageUrls = [];
+        const audioUrls = [];
         const equations = [];
         const tables = [];
+
+        // Detectar elementos de audio y enlaces a archivos de audio
+        node.querySelectorAll("audio, audio source").forEach(el => {
+            const src = el.src || el.getAttribute("src");
+            if (src) {
+                try {
+                    const abs = new URL(src, window.location.href).href;
+                    if (!audioUrls.includes(abs)) audioUrls.push(abs);
+                } catch(e) {
+                    if (!audioUrls.includes(src)) audioUrls.push(src);
+                }
+            }
+        });
+        node.querySelectorAll("a[href]").forEach(a => {
+            const href = a.getAttribute("href") || "";
+            if (href.match(/\.(mp3|wav|ogg|m4a)(\?.*)?$/i) || (href.includes("audio") && href.includes("pluginfile.php"))) {
+                try {
+                    const abs = new URL(href, window.location.href).href;
+                    if (!audioUrls.includes(abs)) audioUrls.push(abs);
+                } catch(e) {
+                    if (!audioUrls.includes(href)) audioUrls.push(href);
+                }
+            }
+        });
 
         if (formulation) {
             const clone = formulation.cloneNode(true);
@@ -71,12 +97,28 @@ JS_EXTRACTOR_SCRIPT = r"""
             // Eliminar ruido no deseado (marcas, botones de ayuda, subquestions)
             clone.querySelectorAll(".accesshide, .sr-only, .validationerror, .questionflag, .info").forEach(el => el.remove());
 
-            // Detectar imágenes
+            // Detectar imágenes y URLs de recursos gráficos (filtrando iconos de UI)
             clone.querySelectorAll("img").forEach(img => {
                 const alt = img.getAttribute("alt") || "";
                 const title = img.getAttribute("title") || "";
                 const desc = alt || title;
                 if (desc) imageDescriptions.push(desc);
+
+                const src = img.getAttribute("src") || img.src || "";
+                if (src) {
+                    const isIcon = src.includes("/pix/") || src.includes("/theme/") || src.includes("icon") || src.includes("emoticon") ||
+                                   img.classList.contains("icon") || img.classList.contains("emoticon");
+                    const w = parseInt(img.getAttribute("width") || img.width || "100", 10);
+                    const h = parseInt(img.getAttribute("height") || img.height || "100", 10);
+                    if (!isIcon && !(w < 35 && h < 35)) {
+                        try {
+                            const abs = new URL(src, window.location.href).href;
+                            if (!imageUrls.includes(abs)) imageUrls.push(abs);
+                        } catch(e) {
+                            if (!imageUrls.includes(src)) imageUrls.push(src);
+                        }
+                    }
+                }
             });
 
             // Detectar ecuaciones matemáticas (LaTeX, KaTeX, MathML)
@@ -320,8 +362,13 @@ JS_EXTRACTOR_SCRIPT = r"""
             prompt: promptText,
             points_text: pointsText,
             media_context: {
-                has_images: imageDescriptions.length > 0,
+                has_images: (imageUrls.length > 0 || imageDescriptions.length > 0),
                 image_descriptions: imageDescriptions,
+                image_urls: imageUrls,
+                ocr_texts: [],
+                has_audio: (audioUrls.length > 0),
+                audio_urls: audioUrls,
+                audio_transcriptions: [],
                 equations: equations,
                 tables: tables
             },
@@ -389,9 +436,16 @@ class DOMParser:
             prompt = cls.clean_moodle_boilerplate(item.get("prompt", ""))
             
             raw_media = item.get("media_context", {})
+            img_urls = raw_media.get("image_urls", [])
+            aud_urls = raw_media.get("audio_urls", [])
             media = MediaContext(
-                has_images=raw_media.get("has_images", False),
+                has_images=raw_media.get("has_images", False) or bool(img_urls),
                 image_descriptions=raw_media.get("image_descriptions", []),
+                image_urls=img_urls,
+                ocr_texts=raw_media.get("ocr_texts", []),
+                has_audio=raw_media.get("has_audio", False) or bool(aud_urls),
+                audio_urls=aud_urls,
+                audio_transcriptions=raw_media.get("audio_transcriptions", []),
                 equations=raw_media.get("equations", []),
                 tables=raw_media.get("tables", [])
             )
@@ -519,7 +573,24 @@ class DOMParser:
             prompt_annotated = re.sub(r'<select\b[^>]*>.*?</select>', _replace_select, prompt_html, flags=re.DOTALL | re.IGNORECASE)
             clean_prompt = cls.clean_moodle_boilerplate(re.sub(r'<[^>]+>', ' ', prompt_annotated))
 
-            has_imgs = bool(re.search(r'<img\b', prompt_html, re.IGNORECASE))
+            # Audio URLs
+            audio_urls = []
+            for aud_src in re.findall(r'<(?:audio|source)[^>]+src=["\']([^"\']+)["\']', block, re.IGNORECASE):
+                if aud_src not in audio_urls:
+                    audio_urls.append(aud_src)
+            for link_aud in re.findall(r'<a[^>]+href=["\']([^"\']+\.(?:mp3|wav|ogg|m4a)(?:\?[^"\']*)?)["\']', block, re.IGNORECASE):
+                if link_aud not in audio_urls:
+                    audio_urls.append(link_aud)
+
+            # Image URLs (filtering UI icons)
+            image_urls = []
+            for img_src in re.findall(r'<img[^>]+src=["\']([^"\']+)["\']', prompt_html, re.IGNORECASE):
+                if any(k in img_src.lower() for k in ["/pix/", "/theme/", "icon", "emoticon"]):
+                    continue
+                if img_src not in image_urls:
+                    image_urls.append(img_src)
+
+            has_imgs = bool(image_urls or re.search(r'<img\b', prompt_html, re.IGNORECASE))
             img_alts = re.findall(r'<img[^>]*alt="([^"]+)"', prompt_html, re.IGNORECASE)
             eqs = re.findall(r'<span[^>]*class="[^"]*math[^"]*"[^>]*>(.*?)</span>', prompt_html, re.IGNORECASE)
 
@@ -606,6 +677,9 @@ class DOMParser:
                 media_context=MediaContext(
                     has_images=has_imgs,
                     image_descriptions=img_alts,
+                    image_urls=image_urls,
+                    has_audio=bool(audio_urls),
+                    audio_urls=audio_urls,
                     equations=[re.sub(r'<[^>]+>', '', eq).strip() for eq in eqs]
                 ),
                 options=options,
