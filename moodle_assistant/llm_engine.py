@@ -54,26 +54,34 @@ REGLAS DE ORO:
        - 'We have started' (usa la forma completa 'have started').
      * Usa SIEMPRE las formas completas ('have' / 'has') cuando el sujeto sea un sustantivo o cuando la contracción no esté unida directamente a un pronombre personal.
 
-3. PRECISIÓN ACADÉMICA MÁXIMA: Elige la respuesta inequívocamente correcta según el marco teórico estándar de la disciplina.
-4. FORMATO ESTRICTO: DEBES responder ÚNICAMENTE con un objeto JSON válido que cumpla exactamente la estructura solicitada. NUNCA agregues texto conversacional antes o después del JSON.
-5. COINCIDENCIA DE IDS Y TEXTOS:
+3. ANÁLISIS DE EJEMPLOS Y CONSIGNAS DE FORMATO (In-Context Examples & Guidelines):
+   - Si el enunciado, la instrucción o la lectura contiene un ejemplo modelo (ej. 'Example:', 'e.g.', 'Por ejemplo:', 'Modelo:', 'Sample:', '[0] Answer 0', etc.):
+     * ANALIZA EL EJEMPLO COMO GUÍA DEFINITIVA: examina con lupa su estructura morfológica, si incluye el sujeto o solamente la forma verbal/respuesta, si usa mayúsculas o minúsculas, si aplica contracciones y qué convención de formato adopta.
+     * REPLICA ESTRICTAMENTE EL MISMO PATRÓN Y ESTILO en todas las respuestas y huecos restantes.
+   - Si las instrucciones especifican CÓMO SE DEBE RESPONDER (ej. 'Write only the verb', 'Use contractions whenever possible', 'Write in lowercase', 'Do not include punctuation', 'Use Simple Past or Present Perfect', 'Responda en una sola palabra'):
+     * CUMPLE CON RIGOR TOTAL esa directiva de formato. El calificador automático de Moodle evalúa coincidencia exacta; cualquier palabra repetida, sujeto fuera de lugar o divergencia de formato causará que la respuesta sea marcada incorrecta.
+
+4. PRECISIÓN ACADÉMICA MÁXIMA: Elige la respuesta inequívocamente correcta según el marco teórico estándar de la disciplina.
+5. FORMATO ESTRICTO: DEBES responder ÚNICAMENTE con un objeto JSON válido que cumpla exactamente la estructura solicitada. NUNCA agregues texto conversacional antes o después del JSON.
+6. COINCIDENCIA DE IDS Y TEXTOS:
    - Para selección múltiple / simple (multichoice, truefalse): Indica en 'selected_options' los IDs exactos o textos de las opciones correctas.
    - Para desplegables, huecos o emparejamiento (match, gapselect, multianswer): En 'matching_answers' mapea cada sub_id con el valor o texto exacto de la opción seleccionada.
    - Para texto libre o numérico (shortanswer, numerical): Proporciona la respuesta exacta sin rodeos en 'text_answer'.
-6. RAZONAMIENTO GLOBAL EN 'explanation': En el campo 'explanation', resume brevemente en 1-2 líneas el contexto general del texto (ej. línea temporal identificada: pasado vs presente) y justifica las respuestas clave antes de presentar el JSON.
-7. PREGUNTAS CON AUDIO (Listening) Y CON IMÁGENES (OCR):
+7. RAZONAMIENTO GLOBAL EN 'explanation': En el campo 'explanation', resume brevemente en 1-2 líneas el contexto general del texto (ej. línea temporal identificada: pasado vs presente, o patrón del ejemplo seguido) y justifica las respuestas clave antes de presentar el JSON.
+8. PREGUNTAS CON AUDIO (Listening) Y CON IMÁGENES (OCR):
    - Si la pregunta incluye una transcripción de audio ('🎧 Transcripción de audio (Whisper): ...'), analízala con total detenimiento. La transcripción contiene las palabras exactas, diálogos o monólogos del listening test. Basa tus respuestas rigurosamente en lo escuchado y transcrito.
    - Si la pregunta incluye texto extraído de imágenes ('🖼️ Texto extraído de imagen (OCR): ...'), tómalo como parte integral del enunciado o las opciones de la pregunta. Usa ese contenido textual para resolver la pregunta con exactitud.
-8. El campo 'question_id' en cada respuesta DEBE SER EXACTAMENTE IGUAL al valor del campo 'question_id' de la pregunta en la entrada.
+9. El campo 'question_id' en cada respuesta DEBE SER EXACTAMENTE IGUAL al valor del campo 'question_id' de la pregunta en la entrada.
 """
 
 SINGLE_QUESTION_PROMPT_TEMPLATE = """Analiza la siguiente pregunta de Moodle y selecciona la respuesta correcta.
 
-IMPORTANTE - LECTURA INTEGRAL, LÍNEA TEMPORAL Y CONTRACCIONES:
+IMPORTANTE - LECTURA INTEGRAL, LÍNEA TEMPORAL, EJEMPLOS Y CONTRACCIONES:
 1. Lee primero todo el enunciado ('Enunciado') de principio a fin para entender el contexto global, la línea temporal y la coherencia del texto.
-2. Cada hueco en el texto está etiquetado como [HUECO N: sub_id]. Relaciona cada hueco con las opciones disponibles abajo.
-3. Respeta la concordancia temporal (hechos del pasado histórico en Simple Past vs cambios de la era actual en Present Perfect).
-4. REGLA DE CONTRACCIONES: Las contracciones afirmativas ('ve, 's) NUNCA se usan tras sustantivos (ej. 'Computers have become', 'Times have changed', 'technology has changed'). Las contracciones son para formas negativas ('didn't', 'weren't', 'haven't').
+2. DETECCIÓN DE EJEMPLOS Y CONSIGNAS: Si el enunciado contiene un ejemplo modelo (ej. 'Example:', 'e.g.', 'Modelo:', '[0]'), examina su morfología y estilo, y replica exactamente ese mismo patrón y formato en todas tus respuestas. Cumple estrictamente con las instrucciones de respuesta (ej. escribir solo el verbo sin sujeto, formato de minúsculas, etc.).
+3. Cada hueco en el texto está etiquetado como [HUECO N: sub_id]. Relaciona cada hueco con las opciones disponibles abajo.
+4. Respeta la concordancia temporal (hechos del pasado histórico en Simple Past vs cambios de la era actual en Present Perfect).
+5. REGLA DE CONTRACCIONES: Las contracciones afirmativas ('ve, 's) NUNCA se usan tras sustantivos (ej. 'Computers have become', 'Times have changed', 'technology has changed'). Las contracciones son para formas negativas ('didn't', 'weren't', 'haven't').
 
 PREGUNTA:
 - ID: {question_id}
@@ -99,11 +107,12 @@ RESPONDE OBLIGATORIAMENTE con un JSON con la siguiente estructura exacta:
 
 BATCH_QUESTIONS_PROMPT_TEMPLATE = """Analiza las siguientes preguntas de Moodle y proporciona la respuesta correcta para CADA UNA de ellas.
 
-IMPORTANTE - LECTURA INTEGRAL, LÍNEA TEMPORAL Y CONTRACCIONES:
+IMPORTANTE - LECTURA INTEGRAL, LÍNEA TEMPORAL, EJEMPLOS Y CONTRACCIONES:
 1. En preguntas de lectura o textos con huecos (multianswer / cloze / gapselect), lee PRIMERO todo el texto completo ('full_reading_text_with_gaps') de principio a fin para comprender el contexto global.
-2. Identifica la línea temporal (párrafos de hechos concluidos en el pasado vs párrafos de cambios en la era actual o presente).
-3. Asegura coherencia y concordancia gramatical entre cada hueco y la totalidad de la lectura.
-4. REGLA DE CONTRACCIONES: Las contracciones afirmativas ('ve, 's) NUNCA se usan tras sustantivos (ej. 'Computers have become', 'Times have changed', 'technology has changed'). Las contracciones aplican a formas negativas ('didn't', 'weren't', 'haven't').
+2. DETECCIÓN DE EJEMPLOS Y CONSIGNAS: Si en el enunciado o lectura se incluye un ejemplo modelo (ej. 'Example:', 'e.g.', 'Sample:', 'Modelo:', 'Answer 0'), analízalo con prioridad para determinar exactamente la regla gramatical, si incluye o no sujeto, y el patrón de formato esperado por el calificador automático. Replica ese patrón con exactitud.
+3. Identifica la línea temporal (párrafos de hechos concluidos en el pasado vs párrafos de cambios en la era actual o presente).
+4. Asegura coherencia y concordancia gramatical entre cada hueco y la totalidad de la lectura.
+5. REGLA DE CONTRACCIONES: Las contracciones afirmativas ('ve, 's) NUNCA se usan tras sustantivos (ej. 'Computers have become', 'Times have changed', 'technology has changed'). Las contracciones aplican a formas negativas ('didn't', 'weren't', 'haven't').
 
 LISTA DE PREGUNTAS:
 {questions_payload}
