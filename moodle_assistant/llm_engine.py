@@ -61,7 +61,10 @@ REGLAS DE ORO:
    - Para desplegables, huecos o emparejamiento (match, gapselect, multianswer): En 'matching_answers' mapea cada sub_id con el valor o texto exacto de la opción seleccionada.
    - Para texto libre o numérico (shortanswer, numerical): Proporciona la respuesta exacta sin rodeos en 'text_answer'.
 6. RAZONAMIENTO GLOBAL EN 'explanation': En el campo 'explanation', resume brevemente en 1-2 líneas el contexto general del texto (ej. línea temporal identificada: pasado vs presente) y justifica las respuestas clave antes de presentar el JSON.
-7. El campo 'question_id' en cada respuesta DEBE SER EXACTAMENTE IGUAL al valor del campo 'question_id' de la pregunta en la entrada.
+7. PREGUNTAS CON AUDIO (Listening) Y CON IMÁGENES (OCR):
+   - Si la pregunta incluye una transcripción de audio ('🎧 Transcripción de audio (Whisper): ...'), analízala con total detenimiento. La transcripción contiene las palabras exactas, diálogos o monólogos del listening test. Basa tus respuestas rigurosamente en lo escuchado y transcrito.
+   - Si la pregunta incluye texto extraído de imágenes ('🖼️ Texto extraído de imagen (OCR): ...'), tómalo como parte integral del enunciado o las opciones de la pregunta. Usa ese contenido textual para resolver la pregunta con exactitud.
+8. El campo 'question_id' en cada respuesta DEBE SER EXACTAMENTE IGUAL al valor del campo 'question_id' de la pregunta en la entrada.
 """
 
 SINGLE_QUESTION_PROMPT_TEMPLATE = """Analiza la siguiente pregunta de Moodle y selecciona la respuesta correcta.
@@ -168,8 +171,18 @@ class LLMEngine:
     def _format_media_info(self, q: QuestionData) -> str:
         """Formatea información multimedia para el prompt."""
         lines = []
-        if q.media_context.has_images and q.media_context.image_descriptions:
+        if q.media_context.audio_transcriptions:
+            for idx, trans in enumerate(q.media_context.audio_transcriptions, 1):
+                lines.append(f"- 🎧 Transcripción de audio (Whisper) #{idx}:\n\"\"\"\n{trans}\n\"\"\"")
+        elif q.media_context.has_audio:
+            lines.append("- 🎧 Archivo de audio detectado en la pregunta (sin transcripción disponible).")
+
+        if q.media_context.ocr_texts:
+            for idx, ocr in enumerate(q.media_context.ocr_texts, 1):
+                lines.append(f"- 🖼️ Texto extraído de imagen (OCR) #{idx}:\n\"\"\"\n{ocr}\n\"\"\"")
+        elif q.media_context.has_images and q.media_context.image_descriptions:
             lines.append(f"- Imágenes descritas: {'; '.join(q.media_context.image_descriptions)}")
+
         if q.media_context.equations:
             lines.append(f"- Fórmulas matemáticas detectadas: {'; '.join(q.media_context.equations)}")
         if q.media_context.tables:
