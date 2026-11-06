@@ -197,12 +197,28 @@ class MoodleAutomator:
                 return await tab.evaluate(script, await_promise=await_promise)
             raise
 
-    async def navigate(self, url: str) -> None:
-        """Navega a una URL específica."""
-        logger.info(f"Navegando a: {url}")
-        tab = await self.get_active_tab()
-        self._tab = await tab.get(url)
-        await self.wait_for_dom_ready()
+    async def navigate(self, url: str) -> bool:
+        """Navega a una URL específica de forma segura validando el protocolo y manejando errores de CDP."""
+        if not url:
+            return False
+
+        clean_url = url.strip()
+        if not (clean_url.startswith("http://") or clean_url.startswith("https://") or clean_url.startswith("file://") or clean_url.startswith("chrome://")):
+            if "." in clean_url or clean_url.startswith("localhost"):
+                clean_url = "https://" + clean_url
+            else:
+                logger.warning(f"URL inválida para navegación: '{clean_url}'")
+                return False
+
+        logger.info(f"Navegando a: {clean_url}")
+        try:
+            tab = await self.get_active_tab()
+            self._tab = await tab.get(clean_url)
+            await self.wait_for_dom_ready()
+            return True
+        except Exception as e:
+            logger.warning(f"Error al navegar a '{clean_url}': {e}")
+            return False
 
     async def wait_for_dom_ready(self, timeout: float = 15.0) -> None:
         """Espera a que el DOM alcance el estado 'complete' o 'interactive'."""
