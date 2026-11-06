@@ -250,7 +250,7 @@ class LLMEngine:
             logger.info("GROQ_API_KEY no configurada. Ejecutando inferencia con modelo local...")
             return await self.local_engine.generate_response(messages)
 
-        fallback_models = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"]
+        fallback_models = ["openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b"]
         last_error = None
         for attempt in range(1, self.config.groq_max_retries + 1):
             try:
@@ -363,10 +363,13 @@ class LLMEngine:
         for q in questions:
             sub_q_formatted = []
             for s_idx, sq in enumerate(q.sub_questions):
+                local_prompt = sq.prompt or f"Espacio [{s_idx + 1}]"
+                if len(local_prompt) > 160:
+                    local_prompt = local_prompt[:157] + "..."
                 sub_q_formatted.append({
                     "sub_id": sq.sub_id,
                     "gap_number": s_idx + 1,
-                    "prompt": sq.prompt,
+                    "prompt": local_prompt,
                     "available_options": [
                         {"id": opt.id, "value": opt.value, "text": opt.text}
                         for opt in sq.options
