@@ -93,6 +93,12 @@ def print_config_status(cfg: Settings) -> None:
     else:
         table.add_row("OCR Imágenes", "Desactivado", "[dim]Inactivo[/dim]")
 
+    if getattr(cfg, "enable_local_fallback", False):
+        local_info = f"{cfg.local_model_provider} ({cfg.local_model_id})"
+        table.add_row("IA Local Fallback", local_info, "[green]Activo[/green]")
+    else:
+        table.add_row("IA Local Fallback", "Desactivado", "[dim]Inactivo[/dim]")
+
     console.print(table)
     console.print()
 
