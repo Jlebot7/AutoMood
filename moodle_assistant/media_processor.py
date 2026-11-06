@@ -51,7 +51,16 @@ class AudioTranscriber:
             logger.debug("Audio transcription cache hit for %s", cache_key)
             return self._cache[cache_key]
 
-        provider = (self.config.whisper_provider or "groq").lower().strip()
+        raw_provider = (self.config.whisper_provider or "auto").lower().strip()
+        provider = raw_provider
+        if provider == "auto":
+            if self.config.is_groq_configured():
+                provider = "groq"
+            elif self.config.is_openai_configured():
+                provider = "openai"
+            else:
+                provider = "local"
+
         result_text = ""
 
         try:
@@ -62,7 +71,7 @@ class AudioTranscriber:
             elif provider == "local":
                 result_text = await self._transcribe_local(audio_bytes)
             else:
-                logger.warning("Proveedor de Whisper desconocido: '%s'. Intentando Groq.", provider)
+                logger.warning("Proveedor de Whisper no estándar: '%s'. Intentando Groq.", provider)
                 result_text = await self._transcribe_groq(audio_bytes, filename)
         except Exception as exc:
             logger.warning("Error durante la transcripción de audio con %s: %s", provider, exc)
