@@ -50,7 +50,16 @@ Combina la velocidad de inferencia de **Groq** (`llama-3.3-70b-versatile`), la p
 
 ---
 
-### 📋 5. Soporte Exhaustivo de Tipos de Preguntas Moodle
+### 🤖 6. Modelo de IA Local de Respaldo (Fallback Automático)
+- **Cero Dependencia de Conectividad**: Si la API de Groq no está disponible, se agotan los reintentos o se superan los límites de tokens (errores 413 o 429), AutoMood activa automáticamente un modelo de IA local sin interrumpir la resolución del cuestionario.
+- **Doble Compatibilidad de Motores**:
+  - **Ollama (Aceleración nativa en GPU)**: Si Ollama está instalado en el sistema, corre con GPU NVIDIA (ej. GeForce RTX 3050) entregando respuestas en milisegundos con modelos como `qwen2.5:1.5b`.
+  - **Hugging Face Transformers (In-Process PyTorch)**: Ejecución directa en proceso con `Qwen/Qwen2.5-1.5B-Instruct` (o `0.5B`), descargando automáticamente los pesos desde Hugging Face la primera vez si es necesario.
+- **Sanitización Antidesbordamiento de Tokens**: Depuración de datos en Base64 en el payload de las preguntas, reduciendo el consumo de tokens en un 98% y eliminando la causa de errores de tamaño de petición.
+
+---
+
+### 📋 7. Soporte Exhaustivo de Tipos de Preguntas Moodle
 - **Selección Múltiple y Simple** (`multichoice` con radio buttons o checkboxes).
 - **Verdadero / Falso** (`truefalse`).
 - **Emparejamiento / Relación de Columnas** (`match`).
@@ -69,6 +78,7 @@ AutoMood/
 │   ├── config.py           # Configuración Pydantic, variables de entorno y selectores CSS
 │   ├── dom_parser.py       # Extractor del DOM, clasificación de tipos, audio e imágenes
 │   ├── llm_engine.py       # Motor AsyncGroq con prompts optimizados, lectura global y ejemplos
+│   ├── local_llm.py        # Motor de IA local (Ollama con GPU o Transformers en proceso)
 │   ├── media_processor.py  # AudioTranscriber (Groq/OpenAI/Faster-Whisper) e ImageOCREngine (EasyOCR)
 │   ├── models.py           # Modelos de datos Pydantic v2 (QuestionData, MediaContext, LLMResponse)
 │   ├── main.py             # CLI interactivo con Rich (tablas, insignias, confirmación paso a paso)
@@ -76,9 +86,11 @@ AutoMood/
 ├── tests/
 │   ├── test_dom_parser.py                     # Parsing de preguntas estándar
 │   ├── test_human_delays_and_typing.py        # Simulación de delays y escritura carácter por carácter
+│   ├── test_local_llm.py                      # Fallback automático a modelo de IA local (413/offline)
 │   ├── test_media_extraction.py               # Extracción DOM de audio/imágenes y prompts LLM
 │   ├── test_media_processor.py                # Transcripción Whisper y extracción EasyOCR
 │   ├── test_models.py                         # Validación de modelos de datos
+│   ├── test_payload_token_size.py             # Sanitización y prevención de desbordamiento de tokens
 │   └── test_reading_context_comprehension.py  # Comprensión de lectura, contracciones y tiempos (15/15)
 ├── run.py                  # Script lanzador conveniente desde la raíz
 └── .env.example            # Plantilla completa de variables de entorno
@@ -118,6 +130,13 @@ GROQ_MODEL=llama-3.3-70b-versatile
 GROQ_TEMPERATURE=0.1
 GROQ_TIMEOUT=45.0
 GROQ_MAX_RETRIES=3
+
+# Modelo Local de Respaldo (Fallback automático ante fallos de Groq, errores 413 o falta de internet)
+ENABLE_LOCAL_FALLBACK=true
+LOCAL_MODEL_PROVIDER=auto           # auto (GPU Ollama o Transformers), ollama, transformers
+LOCAL_MODEL_ID=Qwen/Qwen2.5-1.5B-Instruct # HuggingFace ID (Qwen2.5-1.5B o Qwen2.5-0.5B)
+OLLAMA_MODEL_ID=qwen2.5:1.5b       # Modelo Ollama para aceleración en GPU RTX 3050
+OLLAMA_BASE_URL=http://127.0.0.1:11434
 
 # Transcripción de Audio (Whisper)
 ENABLE_AUDIO_TRANSCRIPTION=True
