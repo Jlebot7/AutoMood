@@ -94,8 +94,8 @@ JS_EXTRACTOR_SCRIPT = r"""
         if (formulation) {
             const clone = formulation.cloneNode(true);
 
-            // Eliminar ruido no deseado (marcas, botones de ayuda, subquestions)
-            clone.querySelectorAll(".accesshide, .sr-only, .validationerror, .questionflag, .info").forEach(el => el.remove());
+            // Eliminar ruido no deseado (marcas, botones de ayuda, subquestions, plugins de audio y scripts)
+            clone.querySelectorAll(".accesshide, .sr-only, .validationerror, .questionflag, .info, script, style, svg, audio, video, .mediaplugin, .video-js").forEach(el => el.remove());
 
             // Detectar imágenes y URLs de recursos gráficos (filtrando iconos de UI)
             clone.querySelectorAll("img").forEach(img => {
@@ -252,12 +252,12 @@ JS_EXTRACTOR_SCRIPT = r"""
                 const sid = selectElem.name || selectElem.id || `gap_${sIdx + 1}`;
                 const selectSelector = selectElem.name ? `select[name="${selectElem.name}"]` : (selectElem.id ? `[id="${selectElem.id}"]` : `select:nth-of-type(${sIdx + 1})`);
                 
-                // Contexto de la oración circundante para precisión máxima
+                // Contexto de la oración circundante para precisión máxima sin duplicar toda la página
                 let sentenceContext = "";
-                const parentBlock = selectElem.closest("p, li, tr, td, .r0, .r1, .formulation");
-                if (parentBlock) {
+                const parentBlock = selectElem.closest("p, li, tr, td, dd, dt, blockquote, .r0, .r1");
+                if (parentBlock && !parentBlock.classList.contains("formulation") && !parentBlock.classList.contains("que")) {
                     const bClone = parentBlock.cloneNode(true);
-                    bClone.querySelectorAll(".accesshide, .sr-only, .validationerror").forEach(el => el.remove());
+                    bClone.querySelectorAll(".accesshide, .sr-only, .validationerror, script, style, svg, audio, video, .mediaplugin, .video-js").forEach(el => el.remove());
                     let localGap = 1;
                     bClone.querySelectorAll("select").forEach(s => {
                         const sSubId = s.name || s.id || `gap_${localGap}`;
@@ -269,6 +269,16 @@ JS_EXTRACTOR_SCRIPT = r"""
                         localGap++;
                     });
                     sentenceContext = bClone.innerText.trim();
+                }
+
+                if (!sentenceContext || sentenceContext.length > 250) {
+                    const prevText = (selectElem.previousSibling && selectElem.previousSibling.textContent) ? selectElem.previousSibling.textContent.slice(-60).trim() : "";
+                    const nextText = (selectElem.nextSibling && selectElem.nextSibling.textContent) ? selectElem.nextSibling.textContent.slice(0, 60).trim() : "";
+                    if (prevText || nextText) {
+                        sentenceContext = `... ${prevText} [HUECO ${sIdx + 1}: ${sid}] ${nextText} ...`.trim();
+                    } else if (sentenceContext && sentenceContext.length > 250) {
+                        sentenceContext = sentenceContext.slice(0, 240) + "...";
+                    }
                 }
 
                 const subOpts = [];
