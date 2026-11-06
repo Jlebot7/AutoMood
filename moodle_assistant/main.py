@@ -311,11 +311,32 @@ class MoodleAssistCLI:
         if not ok:
             return
 
-        target_url = self.config.moodle_url or Prompt.ask(
-            "Ingresa la URL de tu campus Moodle o cuestionario (o Enter para dejar la pestaña actual)"
-        )
+        target_url = self.config.moodle_url
+        if not target_url:
+            user_input = Prompt.ask(
+                "Ingresa la URL de tu campus Moodle o cuestionario (o Enter para dejar la pestaña actual)",
+                default=""
+            ).strip()
+
+            if user_input in ("0", "1", "2", "3", "4", "5", "6"):
+                console.print(
+                    f"[yellow]Nota: Ingresaste '{user_input}'. Manteniendo la pestaña actual del navegador para que navegues libremente.[/yellow]"
+                )
+                target_url = None
+            elif user_input:
+                if "." in user_input or user_input.startswith(("http://", "https://", "file://")):
+                    target_url = user_input
+                else:
+                    console.print(
+                        f"[yellow]'{user_input}' no es una URL válida. Manteniendo la pestaña actual del navegador.[/yellow]"
+                    )
+                    target_url = None
+
         if target_url:
-            await self.automator.navigate(target_url)
+            with console.status(f"[bold cyan]Navegando a {target_url}..."):
+                success = await self.automator.navigate(target_url)
+            if not success:
+                console.print(f"[yellow]No se pudo navegar a '{target_url}'. Puedes abrir la página directamente en la ventana de Chrome.[/yellow]")
 
         console.print(
             Panel(
@@ -328,7 +349,7 @@ class MoodleAssistCLI:
                 border_style="green",
             )
         )
-        Prompt.ask("\nPresiona [bold]Enter[/bold] cuando estés en la página del cuestionario")
+        Prompt.ask("\nPresiona [bold]Enter[/bold] para volver al menú principal", default="")
 
     async def action_solve_current_page(self, dry_run: bool = False, ask_confirmation: bool = True) -> int:
         """Extrae, resuelve y opcionalmente aplica las respuestas en la página actual."""
