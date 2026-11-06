@@ -315,6 +315,17 @@ class MoodleAutomator:
         """
         if not url:
             return None
+
+        # Si es un Data URI (base64 embebido en DOM), decodificar directamente en memoria
+        if url.startswith("data:"):
+            try:
+                import base64
+                _, b64_part = url.split(",", 1)
+                return base64.b64decode(b64_part)
+            except Exception as e:
+                logger.warning(f"Error decodificando data URI en memoria: {e}")
+                return None
+
         fetch_js = f"""
         (async () => {{
             try {{
