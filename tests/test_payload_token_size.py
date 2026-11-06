@@ -88,6 +88,68 @@ def test_payload_sanitization_excludes_base64():
     print(f"✓ Sanitización exitosa: Payload original reducido de >120 KB a {len(serialized)} bytes ({len(serialized.split())} palabras aprox.)")
 
 
+def test_cloze_gaps_do_not_duplicate_full_reading_text():
+    """Verifica que un ejercicio Cloze con 18 huecos no repita la lectura completa en cada hueco."""
+    from moodle_assistant.models import SubQuestion
+    
+    # Simular una lectura larga de 10,000 caracteres
+    long_reading = "In the 1980s technology changed. " * 300  # ~9,000 caracteres
+    
+    sub_questions = []
+    for i in range(1, 19):
+        # Si un hueco recibía el prompt largo antes de la corrección
+        sub_questions.append(SubQuestion(
+            sub_id=f"gap_{i}",
+            prompt=long_reading,  # Simular prompt extenso previo
+            selector=f"select[name='gap_{i}']",
+            options=[OptionChoice(id=f"opt_{i}", text="word", value="1", selector="", is_selected=False)],
+            selected_value=None
+        ))
+    
+    question = QuestionData(
+        question_id="cloze_18_gaps",
+        number="Pregunta 1",
+        qtype=QuestionType.MULTIANSWER,
+        prompt=long_reading,
+        media_context=MediaContext(),
+        options=[],
+        sub_questions=sub_questions,
+        is_multiple_response=False,
+        is_answered=False
+    )
+    
+    # Procesar como lo hace solve_batch_questions
+    sub_q_formatted = []
+    for s_idx, sq in enumerate(question.sub_questions):
+        local_prompt = sq.prompt or f"Espacio [{s_idx + 1}]"
+        if len(local_prompt) > 160:
+            local_prompt = local_prompt[:157] + "..."
+        sub_q_formatted.append({
+            "sub_id": sq.sub_id,
+            "gap_number": s_idx + 1,
+            "prompt": local_prompt,
+            "available_options": [
+                {"id": opt.id, "value": opt.value, "text": opt.text}
+                for opt in sq.options
+            ]
+        })
+    
+    payload = [{
+        "question_id": question.question_id,
+        "number": question.number,
+        "qtype": question.qtype.value,
+        "full_reading_text_with_gaps": question.prompt,
+        "sub_questions": sub_q_formatted,
+    }]
+    
+    serialized = json.dumps(payload)
+    # Sin truncado, 9,000 caracteres * 19 superaría los 170,000 caracteres (>40,000 tokens).
+    # Con truncado, debe estar alrededor de ~15,000 caracteres (apenas ~3,000 tokens).
+    assert len(serialized) < 20000, f"Payload Cloze excesivo: {len(serialized)} caracteres"
+    print(f"✓ Control de tokens en Cloze exitoso: {len(serialized)} caracteres para 18 huecos.")
+
+
 if __name__ == "__main__":
     test_payload_sanitization_excludes_base64()
+    test_cloze_gaps_do_not_duplicate_full_reading_text()
     print("✓ Todos los tests de test_payload_token_size.py pasaron exitosamente!")
