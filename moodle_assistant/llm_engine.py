@@ -8,8 +8,11 @@ from __future__ import annotations
 import json
 import re
 import asyncio
+import logging
 from typing import List, Dict, Any, Optional
 from groq import AsyncGroq, RateLimitError, APIError, APIConnectionError
+
+logger = logging.getLogger("AutoMood.LLM")
 
 from .config import settings, Settings
 from .models import (
@@ -18,6 +21,7 @@ from .models import (
     LLMResponse,
     BatchLLMResponse,
 )
+from .local_llm import LocalLLMEngine
 
 SYSTEM_PROMPT = """Eres MoodleAssist-AI, un asistente de élite especializado en responder con máxima precisión académica cuestionarios y actividades universitarias en Moodle.
 
@@ -142,12 +146,18 @@ class LLMEngine:
     def __init__(self, cfg: Settings = settings):
         self.config = cfg
         self._client: Optional[AsyncGroq] = None
+        self.local_engine: Optional[LocalLLMEngine] = None
+        if getattr(self.config, "enable_local_fallback", True):
+            self.local_engine = LocalLLMEngine(self.config)
 
     @property
     def client(self) -> AsyncGroq:
         """Inicializa o retorna la instancia singleton del cliente AsyncGroq."""
         if self._client is None:
             if not self.config.is_groq_configured():
+                if self.local_engine and getattr(self.config, "enable_local_fallback", True):
+                    # Fallback local disponible si Groq no está configurado
+                    return None
                 raise ValueError(
                     "La clave GROQ_API_KEY no está configurada o es inválida. "
                     "Edita el archivo .env o define la variable de entorno GROQ_API_KEY."
@@ -162,6 +172,8 @@ class LLMEngine:
         """Prueba rápida de conectividad y validez de la API key de Groq."""
         try:
             client = self.client
+            if client is None:
+                return False
             response = await client.chat.completions.create(
                 model=self.config.groq_model,
                 messages=[
@@ -232,8 +244,13 @@ class LLMEngine:
         return text
 
     async def _execute_with_retry(self, messages: List[Dict[str, str]]) -> str:
-        """Ejecuta la llamada a Groq con manejo de backoff exponencial y auto-fallback ante modelos 404."""
-        fallback_models = ["openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b"]
+        """Ejecuta la llamada a Groq con manejo de backoff exponencial y auto-fallback ante modelos 404 o límites de tokens."""
+        # Si Groq no está configurado pero el fallback local está activo
+        if not self.config.is_groq_configured() and self.local_engine:
+            logger.info("GROQ_API_KEY no configurada. Ejecutando inferencia con modelo local...")
+            return await self.local_engine.generate_response(messages)
+
+        fallback_models = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"]
         last_error = None
         for attempt in range(1, self.config.groq_max_retries + 1):
             try:
@@ -249,6 +266,13 @@ class LLMEngine:
                 return content
             except RateLimitError as rle:
                 last_error = rle
+                err_str = str(rle).lower()
+                # Si el error es 413 (Request too large) o 429 persistente, usar inmediatamente el modelo local
+                if ("413" in err_str or "request too large" in err_str or "tokens" in err_str) and self.local_engine:
+                    logger.warning(
+                        "Límite de tokens de Groq excedido (413). Activando fallback a modelo local..."
+                    )
+                    return await self.local_engine.generate_response(messages)
                 wait_time = (2 ** attempt) + 1.0
                 await asyncio.sleep(wait_time)
             except (APIConnectionError, APIError) as apie:
@@ -269,6 +293,13 @@ class LLMEngine:
                             self.config.groq_model = fb
                             break
                 await asyncio.sleep(1.0)
+
+        # Si fallaron todos los reintentos en Groq, recurrir al motor local antes de abortar
+        if self.local_engine and getattr(self.config, "enable_local_fallback", True):
+            logger.warning(
+                "Fallo al invocar Groq (%s). Activando fallback a modelo de IA local...", last_error
+            )
+            return await self.local_engine.generate_response(messages)
 
         raise RuntimeError(f"Fallo al invocar Groq tras {self.config.groq_max_retries} intentos: {last_error}")
 
@@ -342,12 +373,22 @@ class LLMEngine:
                     ]
                 })
 
+            sanitized_media = {
+                "has_images": q.media_context.has_images,
+                "image_descriptions": q.media_context.image_descriptions,
+                "ocr_texts": q.media_context.ocr_texts,
+                "has_audio": q.media_context.has_audio,
+                "audio_transcriptions": q.media_context.audio_transcriptions,
+                "equations": q.media_context.equations,
+                "tables": q.media_context.tables,
+            }
+
             payload_items.append({
                 "question_id": q.question_id,
                 "number": q.number,
                 "qtype": q.qtype.value,
                 "full_reading_text_with_gaps": q.prompt,
-                "media": q.media_context.model_dump(),
+                "media": sanitized_media,
                 "options": [opt.model_dump() for opt in q.options],
                 "sub_questions": sub_q_formatted,
                 "is_multiple_response": q.is_multiple_response
