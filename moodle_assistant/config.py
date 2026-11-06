@@ -145,6 +145,29 @@ class Settings(BaseModel):
         default_factory=lambda: [lang.strip() for lang in os.getenv("OCR_LANGUAGES", "es,en").split(",") if lang.strip()]
     )
 
+    # Configuración de Modelo Local de Respaldo (Fallback cuando Groq falle o se agoten tokens)
+    enable_local_fallback: bool = Field(
+        default_factory=lambda: os.getenv("ENABLE_LOCAL_FALLBACK", "true").strip().lower() in ("true", "1", "yes")
+    )
+    local_model_provider: str = Field(
+        default_factory=lambda: os.getenv("LOCAL_MODEL_PROVIDER", "auto").strip().lower()  # auto, ollama, transformers
+    )
+    local_model_id: str = Field(
+        default_factory=lambda: os.getenv("LOCAL_MODEL_ID", "Qwen/Qwen2.5-1.5B-Instruct").strip()
+    )
+    ollama_model_id: str = Field(
+        default_factory=lambda: os.getenv("OLLAMA_MODEL_ID", "qwen2.5:1.5b").strip()
+    )
+    ollama_base_url: str = Field(
+        default_factory=lambda: os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").strip()
+    )
+    local_model_device: str = Field(
+        default_factory=lambda: os.getenv("LOCAL_MODEL_DEVICE", "auto").strip().lower()  # auto, cuda, cpu
+    )
+    local_model_max_new_tokens: int = Field(
+        default_factory=lambda: int(os.getenv("LOCAL_MODEL_MAX_NEW_TOKENS", "1024"))
+    )
+
     # URL inicial opcional
     moodle_url: Optional[str] = Field(
         default_factory=lambda: os.getenv("MOODLE_URL", None) or None
