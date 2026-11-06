@@ -13,6 +13,9 @@ import logging
 import asyncio
 from typing import List, Dict, Any, Optional
 
+# Deshabilitar advertencias de symlinks en Windows Developer Mode
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+
 import httpx
 from rich.console import Console
 
@@ -164,12 +167,27 @@ class LocalLLMEngine:
             self._transformers_tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
 
             logger.info("Cargando modelo %s en %s (%s)...", model_id, self._device, dtype)
+            has_accelerate = False
+            try:
+                import accelerate
+                has_accelerate = True
+            except ImportError:
+                pass
+
+            load_kwargs = {
+                "dtype": dtype,
+                "trust_remote_code": True,
+            }
+            if has_accelerate:
+                load_kwargs["device_map"] = self._device
+
             self._transformers_model = AutoModelForCausalLM.from_pretrained(
                 model_id,
-                torch_dtype=dtype,
-                device_map=self._device,
-                trust_remote_code=True,
+                **load_kwargs,
             )
+            if not has_accelerate and hasattr(self._transformers_model, "to"):
+                self._transformers_model = self._transformers_model.to(self._device)
+
             console.print(f"[bold green]✓ Modelo local '{model_id}' cargado en {self._device.upper()}.[/bold green]")
 
         # Aplicar plantilla de chat del modelo
