@@ -167,6 +167,9 @@ class Settings(BaseModel):
     local_model_max_new_tokens: int = Field(
         default_factory=lambda: int(os.getenv("LOCAL_MODEL_MAX_NEW_TOKENS", "1024"))
     )
+    local_model_temperature: float = Field(
+        default_factory=lambda: float(os.getenv("LOCAL_MODEL_TEMPERATURE", "0.0"))
+    )
 
     # URL inicial opcional
     moodle_url: Optional[str] = Field(
