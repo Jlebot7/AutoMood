@@ -784,8 +784,20 @@ class MoodleAutomator:
                     if sq.sub_id in matching_dict:
                         target_val = matching_dict[sq.sub_id]
                     else:
-                        # 2. Búsqueda por candidatos de índice (ej: "1", "sub1", "gap_1", "0")
-                        idx_candidates = [str(sq_idx + 1), f"sub{sq_idx + 1}", f"gap_{sq_idx + 1}", str(sq_idx)]
+                        # 2. Búsqueda por candidatos de índice (ej: "1", "sub1", "HUECO 1", "gap_1")
+                        idx_candidates = [
+                            str(sq_idx + 1),
+                            f"sub{sq_idx + 1}",
+                            f"sub_{sq_idx + 1}",
+                            f"gap_{sq_idx + 1}",
+                            f"gap{sq_idx + 1}",
+                            f"HUECO {sq_idx + 1}",
+                            f"HUECO_{sq_idx + 1}",
+                            f"hueco {sq_idx + 1}",
+                            f"hueco_{sq_idx + 1}",
+                            f"hueco{sq_idx + 1}",
+                            str(sq_idx),
+                        ]
                         for cand in idx_candidates:
                             if cand in matching_dict:
                                 target_val = matching_dict[cand]
@@ -848,7 +860,8 @@ class MoodleAutomator:
                                     applied_count += 1
                         else:
                             # Campo de texto libre dentro de cloze
-                            ok = await self.type_into_input(sq.selector, str(target_val))
+                            inp_selector = sq.selector or (f"input[name='{sq.sub_id}']" if sq.sub_id else "input[type='text']")
+                            ok = await self.type_into_input(inp_selector, str(target_val))
                             if ok:
                                 applied_count += 1
 
