@@ -121,8 +121,29 @@ def test_llm_engine_automatic_fallback_on_413():
     print("✓ Fallback automático ante error 413 de Groq ejecutado exitosamente!")
 
 
+def test_compute_memory_distribution():
+    """Prueba que compute_memory_distribution calcule los límites de VRAM (95%) y desborde a RAM."""
+    cfg = Settings()
+    engine = LocalLLMEngine(cfg)
+
+    # Simular 4096MB total, 3000MB libre en GPU 0 y 16000MB RAM disponible
+    with patch("torch.cuda.mem_get_info", return_value=(3000 * 1024 * 1024, 4096 * 1024 * 1024)):
+        with patch("psutil.virtual_memory") as mock_vmem:
+            mock_vmem.return_value = MagicMock(available=16000 * 1024 * 1024)
+            mem_map = engine.compute_memory_distribution()
+
+    assert 0 in mem_map
+    assert "cpu" in mem_map
+    # 95% de 3000MB libre = 2850MB
+    assert mem_map[0] == "2850MB"
+    # 85% de 16000MB = 13600MB
+    assert mem_map["cpu"] == "13600MB"
+    print(f"✓ compute_memory_distribution asignó correctamente: {mem_map}")
+
+
 if __name__ == "__main__":
     test_ollama_availability_offline()
     test_local_engine_with_ollama_mock()
     test_llm_engine_automatic_fallback_on_413()
+    test_compute_memory_distribution()
     print("✓ Todos los tests de test_local_llm.py pasaron exitosamente!")
