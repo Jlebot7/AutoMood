@@ -69,7 +69,10 @@ REGLAS DE ORO:
 5. FORMATO ESTRICTO: DEBES responder ÚNICAMENTE con un objeto JSON válido que cumpla exactamente la estructura solicitada. NUNCA agregues texto conversacional antes o después del JSON.
 6. COINCIDENCIA DE IDS Y TEXTOS:
    - Para selección múltiple / simple (multichoice, truefalse): Indica en 'selected_options' los IDs exactos o textos de las opciones correctas.
-   - Para desplegables, huecos o emparejamiento (match, gapselect, multianswer): En 'matching_answers' mapea cada sub_id con el valor o texto exacto de la opción seleccionada.
+   - Para desplegables, huecos o emparejamiento (match, gapselect, multianswer): En 'matching_answers' mapea CADA sub_id con su respuesta:
+     * Si el hueco es un desplegable con opciones: coloca el valor o texto exacto de la opción seleccionada.
+     * Si el hueco es un campo de texto libre (fill-in-the-blank): coloca la palabra o frase exacta requerida para rellenar el espacio.
+     * DEBES incluir TODOS los sub_id listados sin omitir ninguno.
    - Para texto libre o numérico (shortanswer, numerical): Proporciona la respuesta exacta sin rodeos en 'text_answer'.
 7. RAZONAMIENTO GLOBAL EN 'explanation': En el campo 'explanation', resume brevemente en 1-2 líneas el contexto general del texto (ej. línea temporal identificada: pasado vs presente, o patrón del ejemplo seguido) y justifica las respuestas clave antes de presentar el JSON.
 8. PREGUNTAS CON AUDIO (Listening) Y CON IMÁGENES (OCR):
@@ -222,16 +225,21 @@ class LLMEngine:
         return "\n".join(lines)
 
     def _format_sub_questions_info(self, q: QuestionData) -> str:
-        """Formatea sub-preguntas para match o gapselect con su número de hueco correlativo."""
+        """Formatea sub-preguntas para match, gapselect o multianswer con su número de hueco correlativo."""
         if not q.sub_questions:
             return ""
-        lines = ["- Elementos / Espacios desplegables a responder (¡Relaciónalos con su posición en el enunciado con huecos anterior!):"]
+        lines = [
+            "- Elementos / Espacios a responder (¡Relaciónalos con su posición en el enunciado con huecos anterior!):",
+            "  (Nota: Para desplegables elige una de las opciones listadas; para campos de texto libre escribe la palabra/frase exacta)"
+        ]
         for idx, sq in enumerate(q.sub_questions):
             gap_num = idx + 1
-            lines.append(f"  * [HUECO {gap_num}] Sub-ID: \"{sq.sub_id}\" | Contexto local: \"{sq.prompt}\"")
             if sq.options:
-                opt_strs = [f"[\"{o.id}\" (valor=\"{o.value}\"): \"{o.text}\"]" for o in sq.options]
-                lines.append(f"    Opciones posibles: {', '.join(opt_strs)}")
+                lines.append(f"  * [HUECO {gap_num}] Sub-ID: \"{sq.sub_id}\" (Desplegable) | Contexto: \"{sq.prompt}\"")
+                opt_strs = [f"[\"{o.id}\" (val=\"{o.value}\"): \"{o.text}\"]" for o in sq.options]
+                lines.append(f"    Opciones: {', '.join(opt_strs)}")
+            else:
+                lines.append(f"  * [HUECO {gap_num}] Sub-ID: \"{sq.sub_id}\" (Texto libre) | Contexto: \"{sq.prompt}\"")
         return "\n".join(lines)
 
     def _clean_json_response(self, text: str) -> str:
