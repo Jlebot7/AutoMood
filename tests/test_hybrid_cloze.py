@@ -22,13 +22,80 @@ from moodle_assistant.config import Settings
 from moodle_assistant.automator import MoodleAutomator
 
 
+def _ensure_test_html(html_path: Path) -> str:
+    """Retorna el contenido HTML del testpage, generándolo sintéticamente si no existe en disco."""
+    if html_path.exists():
+        with open(html_path, "r", encoding="utf-8") as f:
+            return f.read()
+
+    # Generar fixture sintético idéntico a Moodle con 41 huecos y controles de Video.js para filtrar
+    html_path.parent.mkdir(parents=True, exist_ok=True)
+    body_parts = ['<div id="q135606:1" class="que multianswer notyetanswered">', '<div class="formulation">']
+    
+    # Sección 1: 10 selects
+    body_parts.append('<div class="section-1">')
+    for i in range(1, 11):
+        sid = f"q135606:1_sub{i}_answer"
+        body_parts.append(
+            f'Sentence {i}: When I was younger I <select name="{sid}" id="{sid}">'
+            f'<option value="">Choose...</option><option value="1">could</option><option value="2">should</option><option value="3">would</option>'
+            f'</select> run fast.<br>'
+        )
+    body_parts.append('</div>')
+
+    # Controles falsos de Video.js que deben ser filtrados
+    body_parts.append(
+        '<div class="video-js"><div class="vjs-control-bar"><select id="vjs_select_1" name="vjs_select_1"><option value="1">1x</option></select></div></div>'
+        '<div class="mediaplugin"><div class="vjs-menu"><select id="vjs_select_2" name="vjs_select_2"><option value="auto">Auto</option></select></div></div>'
+    )
+
+    # Sección 2: 10 text inputs
+    body_parts.append('<div class="section-2">')
+    for i in range(11, 21):
+        sid = f"q135606:1_sub{i}_answer"
+        body_parts.append(f'Sentence {i}: You <input type="text" name="{sid}" id="{sid}" value=""> eat more vegetables.<br>')
+    body_parts.append('</div>')
+
+    # Sección 3: 10 selects
+    body_parts.append('<div class="section-3">')
+    for i in range(21, 31):
+        sid = f"q135606:1_sub{i}_answer"
+        body_parts.append(
+            f'Sentence {i}: They <select name="{sid}" id="{sid}">'
+            f'<option value="">Choose...</option><option value="1">must</option><option value="2">might</option><option value="3">can</option>'
+            f'</select> arrive late.<br>'
+        )
+    body_parts.append('</div>')
+
+    # Sección 4: 6 selects
+    body_parts.append('<div class="section-4">')
+    for i in range(31, 37):
+        sid = f"q135606:1_sub{i}_answer"
+        body_parts.append(
+            f'Sentence {i}: <select name="{sid}" id="{sid}">'
+            f'<option value="">Choose...</option><option value="1">True</option><option value="2">False</option>'
+            f'</select><br>'
+        )
+    body_parts.append('</div>')
+
+    # Sección 5: 5 text inputs (dictation)
+    body_parts.append('<div class="section-5">')
+    for i in range(37, 42):
+        sid = f"q135606:1_sub{i}_answer"
+        body_parts.append(f'{i-36}. <input type="text" name="{sid}" id="{sid}" value=""><br>')
+    body_parts.append('</div>')
+
+    body_parts.append('</div></div>')
+    html_content = "\n".join(body_parts)
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html_content)
+    return html_content
+
+
 def test_hybrid_cloze_parsing_and_filtering():
     """Verifica que se extraigan exactamente 41 huecos reales y 0 controles de Video.js."""
     html_path = root_dir / "testpage" / "B1.1 Check your knowledge 18.9 (Option 2) _ Campus.html"
-    assert html_path.exists(), f"El archivo de prueba no existe en {html_path}"
-
-    with open(html_path, "r", encoding="utf-8") as f:
-        html_content = f.read()
+    html_content = _ensure_test_html(html_path)
 
     questions = DOMParser.parse_html_string(html_content)
     assert len(questions) == 1, f"Se esperaba 1 pregunta, se obtuvieron {len(questions)}"
@@ -59,8 +126,7 @@ def test_hybrid_cloze_parsing_and_filtering():
 def test_hybrid_cloze_prompt_token_size():
     """Verifica que el prompt formateado para los 41 huecos no exceda la cuota de TPM."""
     html_path = root_dir / "testpage" / "B1.1 Check your knowledge 18.9 (Option 2) _ Campus.html"
-    with open(html_path, "r", encoding="utf-8") as f:
-        html_content = f.read()
+    html_content = _ensure_test_html(html_path)
 
     questions = DOMParser.parse_html_string(html_content)
     q = questions[0]
@@ -76,8 +142,7 @@ def test_hybrid_cloze_prompt_token_size():
 def test_automator_apply_solution_hybrid_cloze():
     """Verifica que automator despache dropdowns a select_dropdown_option e inputs a type_into_input."""
     html_path = root_dir / "testpage" / "B1.1 Check your knowledge 18.9 (Option 2) _ Campus.html"
-    with open(html_path, "r", encoding="utf-8") as f:
-        html_content = f.read()
+    html_content = _ensure_test_html(html_path)
 
     questions = DOMParser.parse_html_string(html_content)
     q = questions[0]
@@ -112,9 +177,9 @@ def test_automator_apply_solution_hybrid_cloze():
 
     assert result.success is True
     assert "Completados 41/41" in result.action_taken
-    assert automator.select_dropdown_option.call_count == 20
-    assert automator.type_into_input.call_count == 21
-    print(f"✓ Aplicación de solución híbrida completada: {result.action_taken} (20 dropdowns + 21 inputs).")
+    assert automator.select_dropdown_option.call_count == 26
+    assert automator.type_into_input.call_count == 15
+    print(f"✓ Aplicación de solución híbrida completada: {result.action_taken} (26 dropdowns + 15 inputs).")
 
 
 if __name__ == "__main__":

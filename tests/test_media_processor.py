@@ -144,8 +144,44 @@ def test_audio_transcriber_fallback():
     print("✓ AudioTranscriber fallback a OpenAI pasó exitosamente!")
 
 
+def test_audio_transcriber_fallback_to_local_faster_whisper():
+    """Prueba que si Groq falla y OpenAI no está configurado, hace fallback a faster-whisper local."""
+    cfg = Settings(
+        groq_api_key="gsk_test_key_valid_mock_1234567890",
+        whisper_provider="groq",
+    )
+    transcriber = AudioTranscriber(cfg)
+
+    # Forzar error en Groq
+    mock_groq = MagicMock()
+    mock_groq.audio.transcriptions.create = AsyncMock(side_effect=Exception("Groq Whisper 504 Gateway Timeout"))
+    transcriber._groq_client = mock_groq
+
+    # Mock faster-whisper local
+    transcriber._transcribe_local = AsyncMock(return_value="Local faster-whisper transcription result.")
+
+    sample_audio_bytes = b"FAKE_AUDIO_DATA_FOR_LOCAL_FALLBACK"
+
+    loop = asyncio.new_event_loop()
+    try:
+        result = loop.run_until_complete(
+            transcriber.transcribe_bytes(
+                sample_audio_bytes,
+                filename="dictation.mp3",
+                url="https://campus.example/dictation.mp3",
+            )
+        )
+    finally:
+        loop.close()
+
+    assert transcriber._transcribe_local.called
+    assert result == "Local faster-whisper transcription result."
+    print("✓ AudioTranscriber fallback a local faster-whisper pasó exitosamente!")
+
+
 if __name__ == "__main__":
     test_image_ocr_easyocr()
     test_audio_transcriber_groq_mock()
     test_audio_transcriber_fallback()
+    test_audio_transcriber_fallback_to_local_faster_whisper()
     print("✓ Todos los tests de test_media_processor.py pasaron exitosamente!")

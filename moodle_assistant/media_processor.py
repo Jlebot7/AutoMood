@@ -75,7 +75,7 @@ class AudioTranscriber:
                 result_text = await self._transcribe_groq(audio_bytes, filename)
         except Exception as exc:
             logger.warning("Error durante la transcripción de audio con %s: %s", provider, exc)
-            # Si Groq falla y OpenAI está configurado, intentar fallback
+            # Si Groq falla y OpenAI está configurado, intentar fallback con OpenAI
             if provider == "groq" and self.config.is_openai_configured():
                 logger.info("Intentando fallback de audio con OpenAI Whisper...")
                 try:
@@ -83,7 +83,15 @@ class AudioTranscriber:
                 except Exception as fallback_exc:
                     logger.warning("Fallback con OpenAI Whisper también falló: %s", fallback_exc)
 
-        result_text = result_text.strip()
+        # Fallback de última línea: si el audio sigue sin transcribirse, usar faster-whisper local
+        if not (result_text and result_text.strip()):
+            logger.info("Activando fallback de audio local con faster-whisper...")
+            try:
+                result_text = await self._transcribe_local(audio_bytes)
+            except Exception as local_exc:
+                logger.warning("Fallback local faster-whisper también falló: %s", local_exc)
+
+        result_text = (result_text or "").strip()
         if result_text:
             self._cache[cache_key] = result_text
             logger.info("Audio transcrito exitosamente (%d caracteres)", len(result_text))
@@ -139,15 +147,22 @@ class AudioTranscriber:
 
     def _run_local_faster_whisper(self, audio_bytes: bytes) -> str:
         from faster_whisper import WhisperModel
+        import torch
 
         if self._faster_whisper_model is None:
             model_size = "base"
-            logger.info("Cargando modelo local faster-whisper ('%s')...", model_size)
-            self._faster_whisper_model = WhisperModel(model_size, device="cpu", compute_type="int8")
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            compute_type = "float16" if device == "cuda" else "int8"
+            logger.info("Cargando modelo local faster-whisper ('%s') en %s (%s)...", model_size, device, compute_type)
+            try:
+                self._faster_whisper_model = WhisperModel(model_size, device=device, compute_type=compute_type)
+            except Exception as e:
+                logger.warning("No se pudo iniciar faster-whisper en GPU (%s), usando CPU...", e)
+                self._faster_whisper_model = WhisperModel(model_size, device="cpu", compute_type="int8")
 
         segments, _ = self._faster_whisper_model.transcribe(io.BytesIO(audio_bytes))
         texts = [seg.text for seg in segments]
-        return " ".join(texts)
+        return " ".join(texts).strip()
 
 
 class ImageOCREngine:

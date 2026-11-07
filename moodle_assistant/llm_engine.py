@@ -28,67 +28,68 @@ SYSTEM_PROMPT = """Eres MoodleAssist-AI, un asistente de élite especializado en
 Tu objetivo es analizar preguntas académicas en español (o el idioma del enunciado), comprender el contexto teórico, gramatical y lógico, y proporcionar la respuesta correcta con rigor absoluto.
 
 REGLAS DE ORO:
-1. LECTURA INTEGRAL Y CONTEXTO NARRATIVO GLOBAL PRIMERO:
-   - En preguntas con textos largos, lecturas, actividades de completar huecos (Cloze / multianswer / gapselect) y ejercicios de gramática o idiomas:
+1. LECTURA INTEGRAL Y LÍNEA TEMPORAL (Timeline & Narrative Context):
+   - En textos largos, lecturas y actividades de completar huecos (Cloze / multianswer / gapselect):
      * DEBES LEER EL TEXTO COMPLETO DE PRINCIPIO A FIN antes de responder cualquier sub-pregunta o hueco individual.
-     * Analiza la línea temporal (timeline) de la narración, los marcadores temporales (ej. 'in the 1980s', 'first', 'ago', 'since', 'today', 'now') y la coherencia lógica entre párrafos.
-     * En ejercicios de tiempos verbales (ej. Simple Past vs. Present Perfect):
-       - ATENCIÓN AL MARCADOR 'SINCE': Las oraciones que inician con 'Since [evento pasado]' (ej. 'Since computers were first introduced in the early 1980\\'s, technology HAS CHANGED a great deal') conectan el punto de inicio en el pasado con el presente y exigen obligatoriamente PRESENT PERFECT ('has changed') en la cláusula principal.
-       - Hechos concluidos del pasado histórico: Las oraciones que describen cómo eran o funcionaban los objetos o personas en esa época pasada (ej. 'The first computers were...', 'They didn\\'t have...', 'they weren\\'t...', 'customers paid...', 'machines did very little', 'Most computers were...') DEBEN ir en SIMPLE PAST (ej. 'didn\\'t have', 'weren\\'t', 'were', 'paid', 'did'). En 'They (have, not)' usa 'didn\\'t have' (NUNCA 'haven\\'t had').
-       - La era moderna y actual: Las oraciones que describen la época moderna y cambios continuos (ej. 'Times have changed', 'Computers have become', 'today\\'s games have become', 'Many computer users have also gotten on the Internet and have begun', 'We have started...', 'machines of the past have evolved') DEBEN ir en PRESENT PERFECT (ej. 'have changed', 'have become', 'have created', 'have begun', 'have started', 'have evolved').
-       - Mantén el paralelismo verbal en oraciones coordinadas (ej. 'have also gotten... and have begun').
+     * Analiza la línea temporal de la narración, marcadores temporales (ej. 'in the 1980s', 'first', 'ago', 'since', 'today', 'now') y la coherencia lógica entre párrafos.
+     * En ejercicios de tiempos verbales (Simple Past vs. Present Perfect):
+       - Marcador 'SINCE': Las oraciones con 'Since [evento pasado]' (ej. 'Since computers were first introduced..., technology HAS CHANGED...') exigen PRESENT PERFECT en la cláusula principal.
+       - Hechos concluidos del pasado histórico usan SIMPLE PAST (ej. 'were', 'didn't have', 'weren't', 'paid', 'did'). En 'They (have, not)' usa 'didn't have'.
+       - Era moderna y cambios continuos usan PRESENT PERFECT (ej. 'have changed', 'have become', 'have created', 'have begun', 'have evolved').
+       - Mantén paralelismo verbal en oraciones coordinadas (ej. 'have also gotten... and have begun').
 
-2. USO CORRECTO DE CONTRACCIONES (Affirmative vs. Negative Contractions):
-   - La indicación 'USE CONTRACTIONS WHENEVER POSSIBLE' se refiere a CONTRACCIONES NEGATIVAS:
-     * 'did not' -> 'didn\\'t'
-     * 'were not' -> 'weren\\'t'
-     * 'was not' -> 'wasn\\'t'
-     * 'have not' -> 'haven\\'t'
-     * 'has not' -> 'hasn\\'t'
-   - ¡PROHIBIDO USAR CONTRACCIONES AFIRMATIVAS ('ve, 's) DESPUÉS DE SUSTANTIVOS O FRASES NOMINALES!
-     * En inglés estándar, las contracciones afirmativas ('ve, 's) NUNCA se unen a sustantivos (comunes, propios o plurales) ni tras conjunciones coordinadas:
-       - 'technology has changed' (NUNCA 'technology \\'s changed')
-       - 'Times have changed' (NUNCA 'Times \\'ve changed')
-       - 'Computers have become' (NUNCA 'Computers \\'ve become')
-       - 'Programmers have created' (NUNCA 'Programmers \\'ve created')
-       - 'today\\'s games have become' (NUNCA 'today\\'s games \\'ve become')
-       - 'Many computer users have also gotten' (NUNCA 'users \\'ve also gotten')
-       - 'and have begun' (NUNCA 'and \\'ve begun')
-       - 'the simple machines of the past have evolved' (NUNCA 'machines \\'ve evolved')
-       - 'We have started' (usa la forma completa 'have started').
-     * Usa SIEMPRE las formas completas ('have' / 'has') cuando el sujeto sea un sustantivo o cuando la contracción no esté unida directamente a un pronombre personal.
+2. USO CORRECTO DE CONTRACCIONES (Affirmative vs. Negative):
+   - 'USE CONTRACTIONS WHENEVER POSSIBLE' aplica a CONTRACCIONES NEGATIVAS: 'didn\'t', 'weren\'t', 'wasn\'t', 'haven\'t', 'hasn\'t'.
+   - ¡PROHIBIDO USAR CONTRACCIONES AFIRMATIVAS ('ve, 's) TRAS SUSTANTIVOS O FRASES NOMINALES!
+     * En inglés estándar, las contracciones afirmativas ('ve, 's) NUNCA se unen a sustantivos: usa 'Computers have become', 'Times have changed', 'technology has changed', 'Programmers have created'.
+     * Usa SIEMPRE las formas completas ('have' / 'has') cuando el sujeto sea un sustantivo o tras conjunciones.
 
 3. ANÁLISIS DE EJEMPLOS Y CONSIGNAS DE FORMATO (In-Context Examples & Guidelines):
-   - Si el enunciado, la instrucción o la lectura contiene un ejemplo modelo (ej. 'Example:', 'e.g.', 'Por ejemplo:', 'Modelo:', 'Sample:', '[0] Answer 0', etc.):
-     * ANALIZA EL EJEMPLO COMO GUÍA DEFINITIVA: examina con lupa su estructura morfológica, si incluye el sujeto o solamente la forma verbal/respuesta, si usa mayúsculas o minúsculas, si aplica contracciones y qué convención de formato adopta.
-     * REPLICA ESTRICTAMENTE EL MISMO PATRÓN Y ESTILO en todas las respuestas y huecos restantes.
-   - Si las instrucciones especifican CÓMO SE DEBE RESPONDER (ej. 'Write only the verb', 'Use contractions whenever possible', 'Write in lowercase', 'Do not include punctuation', 'Use Simple Past or Present Perfect', 'Responda en una sola palabra'):
-     * CUMPLE CON RIGOR TOTAL esa directiva de formato. El calificador automático de Moodle evalúa coincidencia exacta; cualquier palabra repetida, sujeto fuera de lugar o divergencia de formato causará que la respuesta sea marcada incorrecta.
+   - Si el enunciado, la instrucción o la lectura contiene un ejemplo modelo (ej. 'Example:', 'e.g.', 'Por ejemplo:', 'Modelo:', 'Sample:', '[0] Answer 0'):
+     * ANALIZA EL EJEMPLO COMO GUÍA DEFINITIVA: examina su morfología, si incluye o no sujeto, mayúsculas/minúsculas y contracciones.
+     * REPLICA ESTRICTAMENTE EL MISMO PATRÓN Y FORMATO en todas las respuestas y huecos restantes.
+   - Cumple con rigor total cualquier directiva de formato (ej. 'Write only the verb', 'Use contractions', 'Responda en una sola palabra').
 
-4. PRECISIÓN ACADÉMICA MÁXIMA: Elige la respuesta inequívocamente correcta según el marco teórico estándar de la disciplina.
-5. FORMATO ESTRICTO: DEBES responder ÚNICAMENTE con un objeto JSON válido que cumpla exactamente la estructura solicitada. NUNCA agregues texto conversacional antes o después del JSON.
-6. COINCIDENCIA DE IDS Y TEXTOS:
+4. REGLA ESTRICTA CONTRA LA REPETICIÓN DE ORACIONES EN HUECOS EN LÍNEA:
+   - ¡PROHIBIDO ESCRIBIR LA ORACIÓN COMPLETA EN HUECOS EN LÍNEA (Cloze / fill-in-the-blank)!
+   - Si el enunciado dice: "You [HUECO 11: sub11] eat more vegetables to stay healthy." y la palabra faltante es el modal 'should':
+     * En matching_answers el valor DEBE SER ÚNICAMENTE: "sub11": "should".
+     * ¡JAMÁS DEVUELVAS "You should eat more vegetables to stay healthy."!
+     * Escribir la oración completa duplicará las palabras en el formulario ("You You should eat more vegetables...") e invalidará el examen.
+   - Para desplegables (dropdowns):
+     * DEBES seleccionar EXCLUSIVAMENTE una de las opciones listadas en 'Opciones: [...]'.
+     * NUNCA inventes o conjugues verbos fuera de la lista dada (ej. no pongas 'ran' si las opciones son 'could', 'should', 'would').
+
+5. EJERCICIOS DE DICTADO Y AUDIO (Dictation & Listening):
+   - Si la pregunta incluye una o varias transcripciones de audio ('🎧 Transcripción de audio (Whisper) ...'):
+     * Analiza las etiquetas de archivo y el contenido de cada audio. Si hay audios de dictado (ej. 'ttsreader', oraciones numeradas), asócialos con la sección correspondiente.
+     * En ejercicios de DICTADO (donde se solicita transcribir oraciones completas dictadas): transcribe fielmente en el hueco correspondiente cada una de las oraciones dictadas que escuchaste, con mayúscula inicial y ortografía correcta.
+     * En ejercicios de comprensión auditiva con opciones: basa tus respuestas con exactitud en lo que dice el audio correspondiente.
+
+6. PRECISIÓN ACADÉMICA MÁXIMA: Elige la respuesta inequívocamente correcta según el marco teórico estándar de la disciplina.
+7. FORMATO ESTRICTO: DEBES responder ÚNICAMENTE con un objeto JSON válido que cumpla exactamente la estructura solicitada. NUNCA agregues texto conversacional antes o después del JSON.
+8. COINCIDENCIA DE IDS Y TEXTOS:
    - Para selección múltiple / simple (multichoice, truefalse): Indica en 'selected_options' los IDs exactos o textos de las opciones correctas.
    - Para desplegables, huecos o emparejamiento (match, gapselect, multianswer): En 'matching_answers' mapea CADA sub_id con su respuesta:
      * Si el hueco es un desplegable con opciones: coloca el valor o texto exacto de la opción seleccionada.
      * Si el hueco es un campo de texto libre (fill-in-the-blank): coloca la palabra o frase exacta requerida para rellenar el espacio.
      * DEBES incluir TODOS los sub_id listados sin omitir ninguno.
    - Para texto libre o numérico (shortanswer, numerical): Proporciona la respuesta exacta sin rodeos en 'text_answer'.
-7. RAZONAMIENTO GLOBAL EN 'explanation': En el campo 'explanation', resume brevemente en 1-2 líneas el contexto general del texto (ej. línea temporal identificada: pasado vs presente, o patrón del ejemplo seguido) y justifica las respuestas clave antes de presentar el JSON.
-8. PREGUNTAS CON AUDIO (Listening) Y CON IMÁGENES (OCR):
-   - Si la pregunta incluye una transcripción de audio ('🎧 Transcripción de audio (Whisper): ...'), analízala con total detenimiento. La transcripción contiene las palabras exactas, diálogos o monólogos del listening test. Basa tus respuestas rigurosamente en lo escuchado y transcrito.
-   - Si la pregunta incluye texto extraído de imágenes ('🖼️ Texto extraído de imagen (OCR): ...'), tómalo como parte integral del enunciado o las opciones de la pregunta. Usa ese contenido textual para resolver la pregunta con exactitud.
-9. El campo 'question_id' en cada respuesta DEBE SER EXACTAMENTE IGUAL al valor del campo 'question_id' de la pregunta en la entrada.
+9. RAZONAMIENTO GLOBAL EN 'explanation': En el campo 'explanation', resume brevemente en 1-2 líneas el contexto general del texto (ej. línea temporal identificada: pasado vs presente, o patrón del ejemplo seguido) y justifica las respuestas clave antes de presentar el JSON.
+10. El campo 'question_id' en cada respuesta DEBE SER EXACTAMENTE IGUAL al valor del campo 'question_id' de la pregunta en la entrada.
 """
 
 SINGLE_QUESTION_PROMPT_TEMPLATE = """Analiza la siguiente pregunta de Moodle y selecciona la respuesta correcta.
 
 IMPORTANTE - LECTURA INTEGRAL, LÍNEA TEMPORAL, EJEMPLOS Y CONTRACCIONES:
 1. Lee primero todo el enunciado ('Enunciado') de principio a fin para entender el contexto global, la línea temporal y la coherencia del texto.
-2. DETECCIÓN DE EJEMPLOS Y CONSIGNAS: Si el enunciado contiene un ejemplo modelo (ej. 'Example:', 'e.g.', 'Modelo:', '[0]'), examina su morfología y estilo, y replica exactamente ese mismo patrón y formato en todas tus respuestas. Cumple estrictamente con las instrucciones de respuesta (ej. escribir solo el verbo sin sujeto, formato de minúsculas, etc.).
-3. Cada hueco en el texto está etiquetado como [HUECO N: sub_id]. Relaciona cada hueco con las opciones disponibles abajo.
-4. Respeta la concordancia temporal (hechos del pasado histórico en Simple Past vs cambios de la era actual en Present Perfect).
-5. REGLA DE CONTRACCIONES: Las contracciones afirmativas ('ve, 's) NUNCA se usan tras sustantivos (ej. 'Computers have become', 'Times have changed', 'technology has changed'). Las contracciones son para formas negativas ('didn't', 'weren't', 'haven't').
+2. DETECCIÓN DE EJEMPLOS Y CONSIGNAS: Si el enunciado contiene un ejemplo modelo (ej. 'Example:', 'e.g.', 'Modelo:', '[0]'), examina su morfología y estilo, y replica exactamente ese mismo patrón y formato en todas tus respuestas.
+3. ¡REGLA DE HUECOS EN LÍNEA!: Para huecos dentro de oraciones escribe ÚNICAMENTE la palabra o verbo modal faltante (ej. 'should', 'could', 'didn't have'). ¡ESTÁ PROHIBIDO escribir la oración completa!
+4. ¡REGLA DE DESPLEGABLES!: Selecciona ÚNICAMENTE una de las opciones listadas en 'Opciones: [...]'. No inventes opciones fuera de la lista.
+5. ¡EJERCICIOS DE DICTADO!: Para huecos de dictado (donde se transcriben oraciones completas escuchadas en audio), escribe fielmente la oración dictada correspondiente.
+6. Cada hueco en el texto está etiquetado como [HUECO N: sub_id]. Relaciona cada hueco con las opciones disponibles abajo.
+7. Respeta la concordancia temporal (hechos del pasado histórico en Simple Past vs cambios de la era actual en Present Perfect).
+8. REGLA DE CONTRACCIONES: Las contracciones afirmativas ('ve, 's) NUNCA se usan tras sustantivos (ej. 'Computers have become', 'Times have changed', 'technology has changed'). Las contracciones son para formas negativas ('didn't', 'weren't', 'haven't').
 
 PREGUNTA:
 - ID: {question_id}
@@ -117,9 +118,12 @@ BATCH_QUESTIONS_PROMPT_TEMPLATE = """Analiza las siguientes preguntas de Moodle 
 IMPORTANTE - LECTURA INTEGRAL, LÍNEA TEMPORAL, EJEMPLOS Y CONTRACCIONES:
 1. En preguntas de lectura o textos con huecos (multianswer / cloze / gapselect), lee PRIMERO todo el texto completo ('full_reading_text_with_gaps') de principio a fin para comprender el contexto global.
 2. DETECCIÓN DE EJEMPLOS Y CONSIGNAS: Si en el enunciado o lectura se incluye un ejemplo modelo (ej. 'Example:', 'e.g.', 'Sample:', 'Modelo:', 'Answer 0'), analízalo con prioridad para determinar exactamente la regla gramatical, si incluye o no sujeto, y el patrón de formato esperado por el calificador automático. Replica ese patrón con exactitud.
-3. Identifica la línea temporal (párrafos de hechos concluidos en el pasado vs párrafos de cambios en la era actual o presente).
-4. Asegura coherencia y concordancia gramatical entre cada hueco y la totalidad de la lectura.
-5. REGLA DE CONTRACCIONES: Las contracciones afirmativas ('ve, 's) NUNCA se usan tras sustantivos (ej. 'Computers have become', 'Times have changed', 'technology has changed'). Las contracciones aplican a formas negativas ('didn't', 'weren't', 'haven't').
+3. ¡REGLA DE HUECOS EN LÍNEA!: Para huecos dentro de oraciones escribe ÚNICAMENTE la palabra o verbo modal faltante (ej. 'should', 'could', 'didn't have'). ¡ESTÁ PROHIBIDO escribir la oración completa!
+4. ¡REGLA DE DESPLEGABLES!: Selecciona ÚNICAMENTE una de las opciones listadas en available_options. No inventes opciones fuera de la lista.
+5. ¡EJERCICIOS DE DICTADO!: Para huecos de dictado (donde se transcriben oraciones completas escuchadas en audio), escribe fielmente la oración dictada correspondiente.
+6. Identifica la línea temporal (párrafos de hechos concluidos en el pasado vs párrafos de cambios en la era actual o presente).
+7. Asegura coherencia y concordancia gramatical entre cada hueco y la totalidad de la lectura.
+8. REGLA DE CONTRACCIONES: Las contracciones afirmativas ('ve, 's) NUNCA se usan tras sustantivos (ej. 'Computers have become', 'Times have changed', 'technology has changed'). Las contracciones aplican a formas negativas ('didn't', 'weren't', 'haven't').
 
 LISTA DE PREGUNTAS:
 {questions_payload}
@@ -225,21 +229,27 @@ class LLMEngine:
         return "\n".join(lines)
 
     def _format_sub_questions_info(self, q: QuestionData) -> str:
-        """Formatea sub-preguntas para match, gapselect o multianswer con su número de hueco correlativo."""
+        """Formatea sub-preguntas para match, gapselect o multianswer con su número de hueco correlativo de forma ultra compacta."""
         if not q.sub_questions:
             return ""
         lines = [
-            "- Elementos / Espacios a responder (¡Relaciónalos con su posición en el enunciado con huecos anterior!):",
-            "  (Nota: Para desplegables elige una de las opciones listadas; para campos de texto libre escribe la palabra/frase exacta)"
+            "- Elementos a responder en matching_answers (asócialos con la posición [HUECO N: sub_id] en el enunciado):",
+            "  (¡REGLA FUNDAMENTAL: Para huecos dentro de oraciones escribe ÚNICAMENTE la palabra o verbo modal faltante. NUNCA escribas la oración completa!)"
         ]
+        has_embedded_gaps = "[HUECO " in q.prompt or "[HUECO_" in q.prompt
         for idx, sq in enumerate(q.sub_questions):
             gap_num = idx + 1
             if sq.options:
-                lines.append(f"  * [HUECO {gap_num}] Sub-ID: \"{sq.sub_id}\" (Desplegable) | Contexto: \"{sq.prompt}\"")
-                opt_strs = [f"[\"{o.id}\" (val=\"{o.value}\"): \"{o.text}\"]" for o in sq.options]
-                lines.append(f"    Opciones: {', '.join(opt_strs)}")
+                opts = [f'"{o.text.strip() or o.value.strip()}"' for o in sq.options if (o.text.strip() or o.value.strip())]
+                lines.append(f'  * [HUECO {gap_num}] "{sq.sub_id}": [{", ".join(opts)}]')
             else:
-                lines.append(f"  * [HUECO {gap_num}] Sub-ID: \"{sq.sub_id}\" (Texto libre) | Contexto: \"{sq.prompt}\"")
+                if not has_embedded_gaps and sq.prompt and len(sq.prompt.strip()) > 0:
+                    ctx = sq.prompt.strip()
+                    if len(ctx) > 80:
+                        ctx = ctx[:77] + "..."
+                    lines.append(f'  * [HUECO {gap_num}] "{sq.sub_id}": (Texto libre) | Contexto: "{ctx}"')
+                else:
+                    lines.append(f'  * [HUECO {gap_num}] "{sq.sub_id}": (Texto libre)')
         return "\n".join(lines)
 
     def _clean_json_response(self, text: str) -> str:
@@ -252,64 +262,85 @@ class LLMEngine:
         return text
 
     async def _execute_with_retry(self, messages: List[Dict[str, str]]) -> str:
-        """Ejecuta la llamada a Groq con manejo de backoff exponencial y auto-fallback ante modelos 404 o límites de tokens."""
+        """Ejecuta la llamada a Groq con manejo de backoff exponencial, cascada de modelos ante 413 y auto-fallback al modelo local."""
         # Si Groq no está configurado pero el fallback local está activo
         if not self.config.is_groq_configured() and self.local_engine:
             logger.info("GROQ_API_KEY no configurada. Ejecutando inferencia con modelo local...")
             return await self.local_engine.generate_response(messages)
 
-        fallback_models = ["openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b"]
-        last_error = None
-        for attempt in range(1, self.config.groq_max_retries + 1):
-            try:
-                response = await self.client.chat.completions.create(
-                    model=self.config.groq_model,
-                    messages=messages,
-                    response_format={"type": "json_object"},
-                    temperature=self.config.groq_temperature,
-                )
-                content = response.choices[0].message.content
-                if not content:
-                    raise ValueError("Respuesta vacía recibida de Groq.")
-                return content
-            except RateLimitError as rle:
-                last_error = rle
-                err_str = str(rle).lower()
-                # Si el error es 413 (Request too large) o 429 persistente, usar inmediatamente el modelo local
-                if ("413" in err_str or "request too large" in err_str or "tokens" in err_str) and self.local_engine:
-                    logger.warning(
-                        "Límite de tokens de Groq excedido (413). Activando fallback a modelo local..."
-                    )
-                    return await self.local_engine.generate_response(messages)
-                wait_time = (2 ** attempt) + 1.0
-                await asyncio.sleep(wait_time)
-            except (APIConnectionError, APIError) as apie:
-                last_error = apie
-                err_str = str(apie).lower()
-                if "model_not_found" in err_str or "does not exist" in err_str or "404" in err_str:
-                    for fb in fallback_models:
-                        if fb != self.config.groq_model:
-                            self.config.groq_model = fb
-                            break
-                await asyncio.sleep(1.0 * attempt)
-            except Exception as e:
-                last_error = e
-                err_str = str(e).lower()
-                if "model_not_found" in err_str or "does not exist" in err_str or "404" in err_str:
-                    for fb in fallback_models:
-                        if fb != self.config.groq_model:
-                            self.config.groq_model = fb
-                            break
-                await asyncio.sleep(1.0)
+        client = self.client
+        if client is None:
+            if self.local_engine and getattr(self.config, "enable_local_fallback", True):
+                return await self.local_engine.generate_response(messages)
+            raise ValueError("Cliente Groq no disponible y fallback local deshabilitado.")
 
-        # Si fallaron todos los reintentos en Groq, recurrir al motor local antes de abortar
+        cascade_models = [self.config.groq_model]
+        for candidate in ["qwen/qwen3.8-27b", "openai/gpt-oss-20b", "openai/gpt-oss-120b"]:
+            if candidate not in cascade_models:
+                cascade_models.append(candidate)
+
+        last_error = None
+
+        # Intentar en cascada con los modelos disponibles de Groq si hay 413 (límite de tokens TPM) o 404
+        for model_name in cascade_models:
+            for attempt in range(1, self.config.groq_max_retries + 1):
+                try:
+                    response = await client.chat.completions.create(
+                        model=model_name,
+                        messages=messages,
+                        response_format={"type": "json_object"},
+                        temperature=self.config.groq_temperature,
+                    )
+                    content = response.choices[0].message.content
+                    if not content:
+                        raise ValueError(f"Respuesta vacía recibida de Groq con {model_name}.")
+                    return content
+                except RateLimitError as rle:
+                    last_error = rle
+                    err_str = str(rle).lower()
+                    if "413" in err_str or "request too large" in err_str or "tokens" in err_str:
+                        logger.warning(
+                            "Límite de tokens en Groq con '%s' (413: %s). Cascada al siguiente modelo de Groq...",
+                            model_name, rle
+                        )
+                        break
+                    wait_time = (2 ** attempt) + 1.0
+                    await asyncio.sleep(wait_time)
+                except (APIConnectionError, APIError) as apie:
+                    last_error = apie
+                    err_str = str(apie).lower()
+                    if "413" in err_str or "request too large" in err_str or getattr(apie, "status_code", 0) == 413:
+                        logger.warning(
+                            "Límite de tokens en Groq con '%s' (413). Cascada al siguiente modelo de Groq...",
+                            model_name
+                        )
+                        break
+                    if "model_not_found" in err_str or "does not exist" in err_str or "404" in err_str:
+                        logger.warning("Modelo '%s' no encontrado en Groq (404). Cascada al siguiente...", model_name)
+                        break
+                    await asyncio.sleep(1.0 * attempt)
+                except Exception as e:
+                    last_error = e
+                    err_str = str(e).lower()
+                    if "413" in err_str or "request too large" in err_str or "tokens" in err_str:
+                        logger.warning(
+                            "Límite de tokens con modelo '%s'. Cascada al siguiente modelo de Groq...",
+                            model_name
+                        )
+                        break
+                    if "model_not_found" in err_str or "does not exist" in err_str or "404" in err_str:
+                        break
+                    await asyncio.sleep(1.0)
+
+        # Si todos los modelos de Groq fallaron o superaron cuota, recurrir al motor local
         if self.local_engine and getattr(self.config, "enable_local_fallback", True):
             logger.warning(
-                "Fallo al invocar Groq (%s). Activando fallback a modelo de IA local...", last_error
+                "Todos los modelos de Groq fallaron o alcanzaron límites de cuota (%s). Activando fallback a modelo de IA local...",
+                last_error
             )
             return await self.local_engine.generate_response(messages)
 
-        raise RuntimeError(f"Fallo al invocar Groq tras {self.config.groq_max_retries} intentos: {last_error}")
+        raise RuntimeError(f"Fallo al invocar Groq tras cascada de modelos: {last_error}")
 
     async def solve_single_question(self, question: QuestionData) -> LLMResponse:
         """Resuelve una pregunta individual utilizando el modelo de Groq."""
@@ -370,19 +401,21 @@ class LLMEngine:
         payload_items = []
         for q in questions:
             sub_q_formatted = []
+            has_embedded_gaps = "[HUECO " in q.prompt or "[HUECO_" in q.prompt
             for s_idx, sq in enumerate(q.sub_questions):
-                local_prompt = sq.prompt or f"Espacio [{s_idx + 1}]"
-                if len(local_prompt) > 160:
-                    local_prompt = local_prompt[:157] + "..."
-                sub_q_formatted.append({
+                sub_item: Dict[str, Any] = {
                     "sub_id": sq.sub_id,
                     "gap_number": s_idx + 1,
-                    "prompt": local_prompt,
-                    "available_options": [
-                        {"id": opt.id, "value": opt.value, "text": opt.text}
+                }
+                if sq.options:
+                    sub_item["available_options"] = [
+                        opt.text.strip() or opt.value.strip()
                         for opt in sq.options
+                        if (opt.text.strip() or opt.value.strip())
                     ]
-                })
+                elif not has_embedded_gaps and sq.prompt:
+                    sub_item["prompt"] = sq.prompt[:80]
+                sub_q_formatted.append(sub_item)
 
             sanitized_media = {
                 "has_images": q.media_context.has_images,

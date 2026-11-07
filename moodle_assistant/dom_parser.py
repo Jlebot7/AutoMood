@@ -577,8 +577,8 @@ class DOMParser:
             q_num = re.sub(r'<[^>]+>', '', no_match.group(1)).strip() if no_match else f"Pregunta {q_idx}"
 
             # Limpiar reproductores multimedia (Video.js, mediaplugin) del bloque completo
-            clean_block = re.sub(r'<div[^>]*\bclass="[^"]*(?:video-js|mediaplugin)[^"]*"[^>]*>.*?</div>\s*</div>', '', block, flags=re.DOTALL | re.IGNORECASE)
-            clean_block = re.sub(r'<(?:audio|video)\b[^>]*>.*?</(?:audio|video)>', '', clean_block, flags=re.DOTALL | re.IGNORECASE)
+            clean_block = re.sub(r'<div[^>]*\bclass="[^"]*(?:video-js|mediaplugin)[^"]*"[^>]*>[\s\S]*?</div>(?:\s*</div>)?', '', block, flags=re.IGNORECASE)
+            clean_block = re.sub(r'<(?:audio|video)\b[^>]*>[\s\S]*?</(?:audio|video)>', '', clean_block, flags=re.IGNORECASE)
 
             # Formulation / prompt
             form_match = re.search(r'<div[^>]*class="[^"]*formulation[^"]*"[^>]*>(.*?)</div>\s*</div>', clean_block, re.DOTALL | re.IGNORECASE)

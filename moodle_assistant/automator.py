@@ -377,8 +377,10 @@ class MoodleAutomator:
                             transcript = await self.audio_transcriber.transcribe_bytes(
                                 aud_bytes, filename=clean_fname, url=aud_url
                             )
-                            if transcript and transcript not in q.media_context.audio_transcriptions:
-                                q.media_context.audio_transcriptions.append(transcript)
+                            if transcript:
+                                trans_entry = f"[{clean_fname}]: {transcript}" if not transcript.startswith("[") else transcript
+                                if trans_entry not in q.media_context.audio_transcriptions:
+                                    q.media_context.audio_transcriptions.append(trans_entry)
                     except Exception as exc:
                         logger.warning(f"No se pudo procesar audio en {q.number}: {exc}")
 
@@ -680,6 +682,90 @@ class MoodleAutomator:
         except Exception:
             return False
 
+    @staticmethod
+    def sanitize_gap_text(raw_text: str, sq_prompt: str = "", full_prompt: str = "", gap_num: int = 0) -> str:
+        """
+        Desinfecta respuestas generadas para huecos en línea (fill-in-the-blank).
+        Si el modelo devolvió la oración completa en lugar de solo la palabra o verbo modal faltante,
+        extrae exclusivamente el término correspondiente al hueco.
+        Preserva oraciones completas en ejercicios de dictado.
+        """
+        val = (raw_text or "").strip()
+        if not val:
+            return ""
+
+        # Remover comillas envolventes si vinieron del JSON
+        if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
+            val = val[1:-1].strip()
+
+        # Si es una o dos palabras cortas (ej. "should", "didn't have", "could"), ya es un valor atómico
+        words = val.split()
+        if len(words) <= 2:
+            return val
+
+        # Detectar si es un ejercicio de dictado (Sección de dictado / oraciones completas)
+        context_lower = (sq_prompt + " " + full_prompt).lower()
+        is_dictation = False
+        if any(kw in context_lower for kw in ["dictat", "listen and write", "listen to each sentence", "write the sentence"]):
+            if sq_prompt:
+                clean_sq = re.sub(r'\[HUECO \d+\]', '', sq_prompt).strip()
+                # Si el contexto del hueco está vacío o solo es un número "1.", "2.", es dictado
+                if len(clean_sq) < 10 or re.match(r'^\d+[\.\)]?$', clean_sq):
+                    is_dictation = True
+            elif gap_num >= 35:
+                is_dictation = True
+
+        if is_dictation:
+            # En dictado, remover enumeración prefija como "1. " o "1) " si el modelo la incluyó
+            cleaned_dictation = re.sub(r'^\d+[\.\)]\s*', '', val).strip()
+            return cleaned_dictation or val
+
+        # Si NO es dictado y tiene más de 2 palabras (ej: "You should eat more vegetables to stay healthy."):
+        # 1. Comprobar si contiene un verbo modal común
+        common_modals = [
+            "should not", "shouldn't", "should",
+            "could not", "couldn't", "could",
+            "would not", "wouldn't", "would",
+            "must not", "mustn't", "must",
+            "might not", "might",
+            "may not", "may",
+            "can not", "cannot", "can't", "can",
+            "had to", "ought to"
+        ]
+        val_lower = val.lower()
+        for modal in common_modals:
+            pattern = r'\b' + re.escape(modal) + r'\b'
+            if re.search(pattern, val_lower):
+                if sq_prompt:
+                    sq_words = set(re.findall(r'\b\w{3,}\b', sq_prompt.lower()))
+                    val_words = set(re.findall(r'\b\w{3,}\b', val_lower))
+                    common = sq_words.intersection(val_words) - {"hueco"}
+                    if len(common) >= 1:
+                        logger.info("Sanitizador: Extrayendo modal '%s' de oración repetida '%s'", modal, val)
+                        return modal
+                else:
+                    logger.info("Sanitizador: Extrayendo modal '%s' de oración larga '%s'", modal, val)
+                    return modal
+
+        # 2. Si sq_prompt contiene prefijo y/o sufijo alrededor de [HUECO N]
+        if "[HUECO" in sq_prompt:
+            # Remover la etiqueta inicial si está presente: ej "[HUECO 4] Computers [HUECO 4] a central part"
+            inner_ctx = re.sub(r'^\s*\[HUECO \d+\]\s*', '', sq_prompt)
+            parts = re.split(r'\[HUECO \d+\]', inner_ctx)
+            if len(parts) == 2:
+                prefix = parts[0].strip().lower()
+                suffix = parts[1].strip().lower()
+                extracted = val
+                if prefix and extracted.lower().startswith(prefix):
+                    extracted = extracted[len(prefix):].strip()
+                if suffix and extracted.lower().endswith(suffix):
+                    extracted = extracted[:-len(suffix)].strip()
+                if extracted and len(extracted.split()) <= 4:
+                    logger.info("Sanitizador: Recortado prefijo/sufijo -> '%s' (de '%s')", extracted, val)
+                    return extracted
+
+        return val
+
     async def apply_solution(self, question: QuestionData, response: LLMResponse) -> ActionExecutionResult:
         """
         Aplica la solución generada por el LLM a los elementos correspondientes en el DOM.
@@ -771,11 +857,17 @@ class MoodleAutomator:
 
                 # Si solo hay 1 subpregunta de texto y vino text_answer
                 if len(question.sub_questions) == 1 and not question.sub_questions[0].options and response.text_answer:
-                    ok = await self.type_into_input(question.sub_questions[0].selector, response.text_answer)
+                    cleaned_val = self.sanitize_gap_text(
+                        response.text_answer,
+                        sq_prompt=question.sub_questions[0].prompt,
+                        full_prompt=question.prompt,
+                        gap_num=1
+                    )
+                    ok = await self.type_into_input(question.sub_questions[0].selector, cleaned_val)
                     return ActionExecutionResult(
                         question_id=qid,
                         success=ok,
-                        action_taken=f"Escrito en hueco: '{response.text_answer}'"
+                        action_taken=f"Escrito en hueco: '{cleaned_val}'"
                     )
 
                 for sq_idx, sq in enumerate(question.sub_questions):
@@ -860,8 +952,14 @@ class MoodleAutomator:
                                     applied_count += 1
                         else:
                             # Campo de texto libre dentro de cloze
+                            cleaned_val = self.sanitize_gap_text(
+                                str(target_val),
+                                sq_prompt=sq.prompt,
+                                full_prompt=question.prompt,
+                                gap_num=sq_idx + 1
+                            )
                             inp_selector = sq.selector or (f"input[name='{sq.sub_id}']" if sq.sub_id else "input[type='text']")
-                            ok = await self.type_into_input(inp_selector, str(target_val))
+                            ok = await self.type_into_input(inp_selector, cleaned_val)
                             if ok:
                                 applied_count += 1
 
