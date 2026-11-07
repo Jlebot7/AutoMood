@@ -245,37 +245,58 @@ JS_EXTRACTOR_SCRIPT = r"""
             });
         }
 
-        // 3. GapSelect / Multianswer / Cloze (Desplegables incrustados en oraciones)
+        // 3. GapSelect / Multianswer / Cloze (Desplegables y campos de texto incrustados en oraciones)
         else if (qtype === "gapselect" || qtype === "selectmulti" || qtype === "multianswer") {
-            const selects = node.querySelectorAll("select");
-            selects.forEach((selectElem, sIdx) => {
-                const sid = selectElem.name || selectElem.id || `gap_${sIdx + 1}`;
-                const selectSelector = selectElem.name ? `select[name="${selectElem.name}"]` : (selectElem.id ? `[id="${selectElem.id}"]` : `select:nth-of-type(${sIdx + 1})`);
+            const isMediaControl = (el) => {
+                return Boolean(
+                    el.closest(".video-js, .mediaplugin, audio, video") ||
+                    (el.id && el.id.startsWith("vjs_")) ||
+                    (el.className && typeof el.className === "string" && el.className.includes("vjs-"))
+                );
+            };
+
+            const formulationNode = node.querySelector(".formulation, .content") || node;
+            const allGapNodes = Array.from(
+                formulationNode.querySelectorAll("select, input[type='text']:not([type='hidden'])")
+            ).filter(el => !isMediaControl(el));
+
+            allGapNodes.forEach((gapElem, gIdx) => {
+                const gapNum = gIdx + 1;
+                const isSelect = (gapElem.tagName.toLowerCase() === "select");
+                const sid = gapElem.name || gapElem.id || `gap_${gapNum}`;
                 
-                // Contexto de la oración circundante para precisión máxima sin duplicar toda la página
+                let elemSelector = "";
+                if (isSelect) {
+                    elemSelector = gapElem.name ? `select[name="${gapElem.name}"]` : (gapElem.id ? `[id="${gapElem.id}"]` : `select:nth-of-type(${gapNum})`);
+                } else {
+                    elemSelector = gapElem.name ? `input[name="${gapElem.name}"]` : (gapElem.id ? `[id="${gapElem.id}"]` : `input[type="text"]:nth-of-type(${gapNum})`);
+                }
+
+                // Contexto de la oración circundante para precisión máxima
                 let sentenceContext = "";
-                const parentBlock = selectElem.closest("p, li, tr, td, dd, dt, blockquote, .r0, .r1");
+                const parentBlock = gapElem.closest("p, li, tr, td, dd, dt, blockquote, .r0, .r1");
                 if (parentBlock && !parentBlock.classList.contains("formulation") && !parentBlock.classList.contains("que")) {
                     const bClone = parentBlock.cloneNode(true);
                     bClone.querySelectorAll(".accesshide, .sr-only, .validationerror, script, style, svg, audio, video, .mediaplugin, .video-js").forEach(el => el.remove());
-                    let localGap = 1;
-                    bClone.querySelectorAll("select").forEach(s => {
-                        const sSubId = s.name || s.id || `gap_${localGap}`;
-                        const isThis = (s.name === selectElem.name || s.id === selectElem.id);
-                        const marker = isThis ? ` [HUECO ${sIdx + 1}: ${sid}] ` : ` [otro_hueco: ${sSubId}] `;
+                    
+                    let localCount = 1;
+                    bClone.querySelectorAll("select, input[type='text']:not([type='hidden'])").forEach(s => {
+                        const sSubId = s.name || s.id || `gap_${localCount}`;
+                        const isThis = (s.name === gapElem.name || s.id === gapElem.id);
+                        const marker = isThis ? ` [HUECO ${gapNum}: ${sid}] ` : ` [otro_hueco: ${sSubId}] `;
                         const span = document.createElement("span");
                         span.innerText = marker;
                         if (s.parentNode) s.parentNode.replaceChild(span, s);
-                        localGap++;
+                        localCount++;
                     });
                     sentenceContext = bClone.innerText.trim();
                 }
 
                 if (!sentenceContext || sentenceContext.length > 250) {
-                    const prevText = (selectElem.previousSibling && selectElem.previousSibling.textContent) ? selectElem.previousSibling.textContent.slice(-60).trim() : "";
-                    const nextText = (selectElem.nextSibling && selectElem.nextSibling.textContent) ? selectElem.nextSibling.textContent.slice(0, 60).trim() : "";
+                    const prevText = (gapElem.previousSibling && gapElem.previousSibling.textContent) ? gapElem.previousSibling.textContent.slice(-60).trim() : "";
+                    const nextText = (gapElem.nextSibling && gapElem.nextSibling.textContent) ? gapElem.nextSibling.textContent.slice(0, 60).trim() : "";
                     if (prevText || nextText) {
-                        sentenceContext = `... ${prevText} [HUECO ${sIdx + 1}: ${sid}] ${nextText} ...`.trim();
+                        sentenceContext = `... ${prevText} [HUECO ${gapNum}: ${sid}] ${nextText} ...`.trim();
                     } else if (sentenceContext && sentenceContext.length > 250) {
                         sentenceContext = sentenceContext.slice(0, 240) + "...";
                     }
@@ -284,47 +305,38 @@ JS_EXTRACTOR_SCRIPT = r"""
                 const subOpts = [];
                 let currSelected = null;
 
-                Array.from(selectElem.options).forEach(opt => {
-                    const optVal = opt.value;
-                    const optTxt = (opt.innerText || opt.text || "").trim();
-                    const isBlank = (optVal === "" || optTxt === "" || optTxt === "\u00a0" || optTxt === "Elegir..." || optTxt === "Choose...");
-                    if (!isBlank) {
-                        subOpts.push({
-                            id: `${sid}_opt_${optVal}`,
-                            text: optTxt,
-                            value: optVal,
-                            selector: `${selectSelector} option[value="${optVal}"]`,
-                            is_selected: opt.selected
-                        });
-                    }
-                    if (opt.selected && !isBlank) {
-                        currSelected = optVal;
+                if (isSelect) {
+                    Array.from(gapElem.options).forEach(opt => {
+                        const optVal = opt.value;
+                        const optTxt = (opt.innerText || opt.text || "").trim();
+                        const isBlank = (optVal === "" || optTxt === "" || optTxt === "\u00a0" || optTxt === "Elegir..." || optTxt === "Choose...");
+                        if (!isBlank) {
+                            subOpts.push({
+                                id: `${sid}_opt_${optVal}`,
+                                text: optTxt,
+                                value: optVal,
+                                selector: `${elemSelector} option[value="${optVal}"]`,
+                                is_selected: opt.selected
+                            });
+                        }
+                        if (opt.selected && !isBlank) {
+                            currSelected = optVal;
+                            isAnswered = true;
+                        }
+                    });
+                } else {
+                    if (gapElem.value && gapElem.value.trim().length > 0) {
+                        currSelected = gapElem.value.trim();
                         isAnswered = true;
                     }
-                });
+                }
 
                 subQuestions.push({
                     sub_id: sid,
-                    prompt: sentenceContext ? `[HUECO ${sIdx + 1}] ${sentenceContext}` : `Espacio en blanco [HUECO ${sIdx + 1}]`,
-                    selector: selectSelector,
+                    prompt: sentenceContext ? `[HUECO ${gapNum}] ${sentenceContext}` : `Espacio en blanco [HUECO ${gapNum}]`,
+                    selector: elemSelector,
                     options: subOpts,
                     selected_value: currSelected
-                });
-            });
-
-            // Si además hay inputs de texto en cloze
-            const textInputs = node.querySelectorAll("input[type='text']");
-            textInputs.forEach((inp, tIdx) => {
-                const inpSelector = inp.name ? `input[name="${inp.name}"]` : (inp.id ? `[id="${inp.id}"]` : `input[type="text"]:nth-of-type(${tIdx + 1})`);
-                if (inp.value && inp.value.trim().length > 0) {
-                    isAnswered = true;
-                }
-                subQuestions.push({
-                    sub_id: inp.name || inp.id || `textgap_${tIdx + 1}`,
-                    prompt: `Campo de texto [${tIdx + 1}]`,
-                    selector: inpSelector,
-                    options: [],
-                    selected_value: inp.value || null
                 });
             });
         }
@@ -564,15 +576,23 @@ class DOMParser:
             no_match = re.search(r'<(?:h3|span|div)[^>]*class="[^"]*no[^"]*"[^>]*>(.*?)</(?:h3|span|div)>', block, re.DOTALL | re.IGNORECASE)
             q_num = re.sub(r'<[^>]+>', '', no_match.group(1)).strip() if no_match else f"Pregunta {q_idx}"
 
-            # Formulation / prompt
-            form_match = re.search(r'<div[^>]*class="[^"]*formulation[^"]*"[^>]*>(.*?)</div>\s*</div>', block, re.DOTALL | re.IGNORECASE)
-            prompt_html = form_match.group(1) if form_match else ""
+            # Limpiar reproductores multimedia (Video.js, mediaplugin) del bloque completo
+            clean_block = re.sub(r'<div[^>]*\bclass="[^"]*(?:video-js|mediaplugin)[^"]*"[^>]*>.*?</div>\s*</div>', '', block, flags=re.DOTALL | re.IGNORECASE)
+            clean_block = re.sub(r'<(?:audio|video)\b[^>]*>.*?</(?:audio|video)>', '', clean_block, flags=re.DOTALL | re.IGNORECASE)
 
-            # Reemplazar selects con etiquetas numeradas [HUECO N: sid] en el prompt general
+            # Formulation / prompt
+            form_match = re.search(r'<div[^>]*class="[^"]*formulation[^"]*"[^>]*>(.*?)</div>\s*</div>', clean_block, re.DOTALL | re.IGNORECASE)
+            prompt_html = form_match.group(1) if form_match else clean_block
+
+            # Reemplazar selects e inputs de texto con etiquetas numeradas [HUECO N: sid] en el prompt general
             gap_c = 1
-            def _replace_select(m):
+            def _replace_gap(m):
                 nonlocal gap_c
                 tag = m.group(0)
+                if 'id="vjs_' in tag or 'class="vjs-' in tag:
+                    return ""
+                if any(k in tag.lower() for k in ['type="hidden"', 'type="submit"', 'type="radio"', 'type="checkbox"', 'placeholder="search"']):
+                    return ""
                 name_m = re.search(r'name="([^"]+)"', tag)
                 id_m = re.search(r'id="([^"]+)"', tag)
                 sid = name_m.group(1) if name_m else (id_m.group(1) if id_m else f"gap_{gap_c}")
@@ -580,7 +600,11 @@ class DOMParser:
                 gap_c += 1
                 return res
 
-            prompt_annotated = re.sub(r'<select\b[^>]*>.*?</select>', _replace_select, prompt_html, flags=re.DOTALL | re.IGNORECASE)
+            if qtype in (QuestionType.MULTIANSWER, QuestionType.GAPSELECT, QuestionType.SELECTMULTI):
+                prompt_annotated = re.sub(r'(<select\b[^>]*>.*?</select>|<input\b[^>]*type=["\']text["\'][^>]*>)', _replace_gap, prompt_html, flags=re.DOTALL | re.IGNORECASE)
+            else:
+                prompt_annotated = re.sub(r'<select\b[^>]*>.*?</select>', _replace_gap, prompt_html, flags=re.DOTALL | re.IGNORECASE)
+
             clean_prompt = cls.clean_moodle_boilerplate(re.sub(r'<[^>]+>', ' ', prompt_annotated))
 
             # Audio URLs
@@ -638,46 +662,74 @@ class DOMParser:
                         ))
 
             sub_questions: List[SubQuestion] = []
-            select_matches = list(re.finditer(r'<select\s+([^>]+)>(.*?)</select>', block, re.DOTALL | re.IGNORECASE))
-            if select_matches:
-                if qtype == QuestionType.UNKNOWN:
-                    qtype = QuestionType.MULTIANSWER
+            if qtype in (QuestionType.MULTIANSWER, QuestionType.GAPSELECT, QuestionType.SELECTMULTI, QuestionType.MATCH):
+                control_matches = list(re.finditer(r'(<select\b([^>]*)>(.*?)</select>|<input\b([^>]*)>)', clean_block, re.DOTALL | re.IGNORECASE))
+                gap_idx = 0
+                for cm in control_matches:
+                    full_match = cm.group(0)
+                    if "<select" in full_match:
+                        sel_attrs = cm.group(2)
+                        sel_content = cm.group(3)
+                        if 'id="vjs_' in sel_attrs or 'class="vjs-' in sel_attrs:
+                            continue
+                        name_m = re.search(r'name="([^"]+)"', sel_attrs)
+                        id_m = re.search(r'id="([^"]+)"', sel_attrs)
+                        sid = name_m.group(1) if name_m else (id_m.group(1) if id_m else '')
+                        if not sid or ('sub' not in sid and '_answer' not in sid and 'gap' not in sid):
+                            continue
+                        gap_idx += 1
+                        sel_selector = f"select[name='{sid}']" if name_m else f"[id='{sid}']"
 
-                for s_i, sm in enumerate(select_matches):
-                    sel_attrs = sm.group(1)
-                    sel_content = sm.group(2)
-                    name_m = re.search(r'name="([^"]+)"', sel_attrs)
-                    id_m = re.search(r'id="([^"]+)"', sel_attrs)
-                    sid = name_m.group(1) if name_m else (id_m.group(1) if id_m else f"gap_{s_i}")
-                    sel_selector = f"select[name='{name_m.group(1)}']" if name_m else (f"[id='{id_m.group(1)}']" if id_m else f"select:nth-of-type({s_i+1})")
+                        opt_tags = re.findall(r'<option\s+([^>]+)>(.*?)</option>', sel_content, re.DOTALL | re.IGNORECASE)
+                        sub_opts = []
+                        curr_sel = None
+                        for o_attr, o_txt in opt_tags:
+                            v_m = re.search(r'value="([^"]*)"', o_attr)
+                            val = v_m.group(1) if v_m else ""
+                            txt = re.sub(r'<[^>]+>', '', o_txt).strip()
+                            is_sel = 'selected' in o_attr
+                            is_blank = (val == "" or txt == "" or txt == "&nbsp;" or txt in ("Elegir...", "Choose..."))
+                            if not is_blank:
+                                sub_opts.append(OptionChoice(
+                                    id=f"{sid}_opt_{val}",
+                                    text=txt,
+                                    value=val,
+                                    selector=f"{sel_selector} option[value='{val}']",
+                                    is_selected=is_sel
+                                ))
+                            if is_sel and not is_blank:
+                                curr_sel = val
 
-                    opt_tags = re.findall(r'<option\s+([^>]+)>(.*?)</option>', sel_content, re.DOTALL | re.IGNORECASE)
-                    sub_opts = []
-                    curr_sel = None
-                    for o_attr, o_txt in opt_tags:
-                        v_m = re.search(r'value="([^"]*)"', o_attr)
-                        val = v_m.group(1) if v_m else ""
-                        txt = re.sub(r'<[^>]+>', '', o_txt).strip()
-                        is_sel = 'selected' in o_attr
-                        is_blank = (val == "" or txt == "" or txt == "&nbsp;" or txt in ("Elegir...", "Choose..."))
-                        if not is_blank:
-                            sub_opts.append(OptionChoice(
-                                id=f"{sid}_{val}",
-                                text=txt,
-                                value=val,
-                                selector=f"{sel_selector} option[value='{val}']",
-                                is_selected=is_sel
-                            ))
-                        if is_sel and not is_blank:
-                            curr_sel = val
+                        sub_questions.append(SubQuestion(
+                            sub_id=sid,
+                            prompt=f"Espacio desplegable [HUECO {gap_idx}]",
+                            selector=sel_selector,
+                            options=sub_opts,
+                            selected_value=curr_sel
+                        ))
+                    elif "<input" in full_match:
+                        inp_attrs = cm.group(4)
+                        if any(k in inp_attrs.lower() for k in ['type="hidden"', 'type="submit"', 'type="radio"', 'type="checkbox"']):
+                            continue
+                        if 'id="vjs_' in inp_attrs or 'class="vjs-' in inp_attrs:
+                            continue
+                        name_m = re.search(r'name="([^"]+)"', inp_attrs)
+                        id_m = re.search(r'id="([^"]+)"', inp_attrs)
+                        sid = name_m.group(1) if name_m else (id_m.group(1) if id_m else '')
+                        if not sid or ('sub' not in sid and '_answer' not in sid and 'gap' not in sid):
+                            continue
+                        gap_idx += 1
+                        inp_selector = f"input[name='{sid}']" if name_m else f"[id='{sid}']"
+                        val_m = re.search(r'value="([^"]*)"', inp_attrs)
+                        curr_val = val_m.group(1) if val_m else None
 
-                    sub_questions.append(SubQuestion(
-                        sub_id=sid,
-                        prompt=f"Espacio [{s_i + 1}]",
-                        selector=sel_selector,
-                        options=sub_opts,
-                        selected_value=curr_sel
-                    ))
+                        sub_questions.append(SubQuestion(
+                            sub_id=sid,
+                            prompt=f"Campo de texto libre [HUECO {gap_idx}]",
+                            selector=inp_selector,
+                            options=[],
+                            selected_value=curr_val
+                        ))
 
             questions.append(QuestionData(
                 question_id=qid,
