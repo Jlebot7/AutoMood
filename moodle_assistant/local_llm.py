@@ -41,12 +41,12 @@ class LocalLLMEngine:
 
     async def check_ollama_available(self) -> bool:
         """Comprueba si el servidor local de Ollama está activo y respondiendo."""
-        if self._is_ollama_available is not None:
-            return self._is_ollama_available
+        if self._is_ollama_available is True:
+            return True
 
         url = f"{self.config.ollama_base_url.rstrip('/')}/api/tags"
         try:
-            async with httpx.AsyncClient(timeout=2.0) as client:
+            async with httpx.AsyncClient(timeout=1.5) as client:
                 res = await client.get(url)
                 if res.status_code == 200:
                     self._is_ollama_available = True
@@ -55,8 +55,54 @@ class LocalLLMEngine:
         except Exception:
             pass
 
+        # Si no responde pero ollama está instalado en el sistema (y la URL es localhost estándar), intentar levantarlo en segundo plano
+        is_default_localhost = ("127.0.0.1:11434" in url or "localhost:11434" in url)
+        if is_default_localhost and self._try_spawn_ollama_serve():
+            for _ in range(8):
+                await asyncio.sleep(0.5)
+                try:
+                    async with httpx.AsyncClient(timeout=1.0) as client:
+                        res = await client.get(url)
+                        if res.status_code == 200:
+                            self._is_ollama_available = True
+                            logger.info("Servidor Ollama iniciado y respondiendo en %s", url)
+                            return True
+                except Exception:
+                    continue
+
         self._is_ollama_available = False
         return False
+
+    def _try_spawn_ollama_serve(self) -> bool:
+        """Intenta iniciar el proceso 'ollama serve' en segundo plano si no estaba corriendo."""
+        import shutil
+        import subprocess
+
+        ollama_bin = shutil.which("ollama")
+        if not ollama_bin:
+            default_win_path = os.path.expandvars(r"%LOCALAPPDATA%\Programs\Ollama\ollama.exe")
+            if os.path.isfile(default_win_path):
+                ollama_bin = default_win_path
+
+        if not ollama_bin:
+            return False
+
+        try:
+            kwargs = {}
+            if sys.platform == "win32":
+                kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW | getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+            subprocess.Popen(
+                [ollama_bin, "serve"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                **kwargs
+            )
+            logger.info("Proceso 'ollama serve' iniciado en segundo plano desde %s", ollama_bin)
+            return True
+        except Exception as e:
+            logger.debug("No se pudo iniciar 'ollama serve' automáticamente: %s", e)
+            return False
 
     async def generate_response(self, messages: List[Dict[str, str]]) -> str:
         """
@@ -132,6 +178,29 @@ class LocalLLMEngine:
             res.raise_for_status()
         console.print(f"[bold green]✓ Modelo '{model_name}' listo en Ollama.[/bold green]")
 
+    def compute_memory_distribution(self) -> Dict[Any, str]:
+        """
+        Calcula la distribución óptima de memoria entre VRAM (GPU 0) y RAM (CPU).
+        Garantiza que el modelo aproveche la VRAM hasta un máximo del 95% y envíe
+        cualquier excedente a la memoria RAM del sistema.
+        """
+        import torch
+        import psutil
+
+        free_bytes, total_bytes = torch.cuda.mem_get_info(0)
+        # Llenar la VRAM hasta el 95% de capacidad libre/total disponible
+        vram_target_95 = int(min(total_bytes * 0.95, free_bytes * 0.95))
+        vram_target_mb = max(vram_target_95 // (1024 * 1024), 512)
+
+        # RAM del sistema (CPU): permitir hasta el 85% de la RAM disponible
+        ram_avail_bytes = psutil.virtual_memory().available
+        ram_target_mb = max(int(ram_avail_bytes * 0.85) // (1024 * 1024), 2048)
+
+        return {
+            0: f"{vram_target_mb}MB",
+            "cpu": f"{ram_target_mb}MB",
+        }
+
     # -------------------------------------------------------------------------
     # Implementación con Transformers (PyTorch en proceso)
     # -------------------------------------------------------------------------
@@ -153,10 +222,9 @@ class LocalLLMEngine:
 
             # Selección de dispositivo (CUDA si está disponible, o CPU)
             pref_device = self.config.local_model_device.lower()
-            if pref_device == "cuda" and torch.cuda.is_available():
-                self._device = "cuda"
-                dtype = torch.float16
-            elif pref_device == "auto" and torch.cuda.is_available():
+            use_cuda = torch.cuda.is_available() and pref_device in ("auto", "cuda")
+
+            if use_cuda:
                 self._device = "cuda"
                 dtype = torch.float16
             else:
@@ -166,7 +234,7 @@ class LocalLLMEngine:
             logger.info("Cargando tokenizer para %s...", model_id)
             self._transformers_tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
 
-            logger.info("Cargando modelo %s en %s (%s)...", model_id, self._device, dtype)
+            logger.info("Cargando modelo %s (dispositivo: %s, dtype: %s)...", model_id, self._device, dtype)
             has_accelerate = False
             try:
                 import accelerate
@@ -178,7 +246,21 @@ class LocalLLMEngine:
                 "dtype": dtype,
                 "trust_remote_code": True,
             }
-            if has_accelerate:
+
+            if use_cuda and has_accelerate:
+                try:
+                    max_memory = self.compute_memory_distribution()
+                    load_kwargs["device_map"] = "auto"
+                    load_kwargs["max_memory"] = max_memory
+                    
+                    console.print(
+                        f"[dim]Distribución de memoria VRAM/RAM: VRAM(GPU 0) máx = {max_memory[0]} (95%), "
+                        f"RAM(CPU) excedente = {max_memory['cpu']}[/dim]"
+                    )
+                except Exception as ex:
+                    logger.warning("No se pudo calcular límite de VRAM al 95%% (%s), usando device_map='auto'", ex)
+                    load_kwargs["device_map"] = "auto"
+            elif has_accelerate:
                 load_kwargs["device_map"] = self._device
 
             self._transformers_model = AutoModelForCausalLM.from_pretrained(
@@ -188,7 +270,12 @@ class LocalLLMEngine:
             if not has_accelerate and hasattr(self._transformers_model, "to"):
                 self._transformers_model = self._transformers_model.to(self._device)
 
-            console.print(f"[bold green]✓ Modelo local '{model_id}' cargado en {self._device.upper()}.[/bold green]")
+            hf_device_summary = getattr(self._transformers_model, "hf_device_map", None)
+            if hf_device_summary:
+                devices_used = set(hf_device_summary.values())
+                console.print(f"[bold green]✓ Modelo local '{model_id}' cargado con éxito en: {devices_used}.[/bold green]")
+            else:
+                console.print(f"[bold green]✓ Modelo local '{model_id}' cargado en {self._device.upper()}.[/bold green]")
 
         # Aplicar plantilla de chat del modelo
         tokenizer = self._transformers_tokenizer
@@ -200,16 +287,25 @@ class LocalLLMEngine:
             add_generation_prompt=True,
         )
 
-        inputs = tokenizer(prompt_text, return_tensors="pt").to(self._device)
+        primary_device = getattr(model, "device", None) or self._device
+        inputs = tokenizer(prompt_text, return_tensors="pt").to(primary_device)
         max_tokens = self.config.local_model_max_new_tokens or 1024
+
+        gen_kwargs = {
+            "max_new_tokens": max_tokens,
+            "pad_token_id": tokenizer.eos_token_id,
+        }
+        temp = getattr(self.config, "local_model_temperature", 0.0)
+        if temp > 0:
+            gen_kwargs["do_sample"] = True
+            gen_kwargs["temperature"] = temp
+        else:
+            gen_kwargs["do_sample"] = False
 
         with torch.no_grad():
             output_tokens = model.generate(
                 **inputs,
-                max_new_tokens=max_tokens,
-                temperature=0.1,
-                do_sample=False,
-                pad_token_id=tokenizer.eos_token_id,
+                **gen_kwargs,
             )
 
         # Extraer solo los tokens generados por el asistente
