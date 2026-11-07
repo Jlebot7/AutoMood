@@ -706,18 +706,40 @@ class MoodleAutomator:
         # Detectar si es un ejercicio de dictado (Sección de dictado / oraciones completas)
         context_lower = (sq_prompt + " " + full_prompt).lower()
         is_dictation = False
-        if any(kw in context_lower for kw in ["dictat", "listen and write", "listen to each sentence", "write the sentence"]):
+        dictation_keywords = [
+            "dictat", "dictado", "listen and write", "listen and type",
+            "listen to each sentence", "write the sentence", "write what you hear",
+            "transcribe", "transcripci", "conversation", "lo que escuch"
+        ]
+        if any(kw in context_lower for kw in dictation_keywords):
             if sq_prompt:
                 clean_sq = re.sub(r'\[HUECO \d+\]', '', sq_prompt).strip()
-                # Si el contexto del hueco está vacío o solo es un número "1.", "2.", es dictado
-                if len(clean_sq) < 10 or re.match(r'^\d+[\.\)]?$', clean_sq):
+                # Si el contexto del hueco está vacío o es un número/etiqueta como "1.", "Conversation 1", etc.
+                if (len(clean_sq) < 15 or 
+                    re.match(r'^(?:(?:conversation|number|sentence|oraci[oó]n|frase)\s*\d+[\.:\-]?|\d+[\.\)]?)$', clean_sq, re.I)):
                     is_dictation = True
             elif gap_num >= 35:
                 is_dictation = True
 
+        # Si en full_prompt la línea correspondiente a este hueco no tiene texto después del hueco
+        if not is_dictation and "[HUECO" in full_prompt:
+            pattern = rf'\[HUECO\s+{gap_num}(?::[^\]]+)?\]([^\n\r<]*)'
+            m = re.search(pattern, full_prompt)
+            if m:
+                after_text = m.group(1).strip()
+                if not after_text and any(kw in context_lower for kw in ["audio", "listen", "hear", "sound", "dictat", "mp3"]):
+                    is_dictation = True
+
         if is_dictation:
-            # En dictado, remover enumeración prefija como "1. " o "1) " si el modelo la incluyó
-            cleaned_dictation = re.sub(r'^\d+[\.\)]\s*', '', val).strip()
+            # En dictado, la respuesta DEBE ser la frase completa tal cual.
+            # Remover únicamente la enumeración prefija (ej: "1. ", "1) ", "Conversation 1: ", "Number 1: ")
+            # si el modelo la incluyó por error, pues Moodle ya suele incluir el número en el enunciado.
+            cleaned_dictation = re.sub(
+                r'^(?:(?:conversation|number|sentence|oraci[oó]n|frase|audio)\s*\d+[\.:\-]?|\d+[\.\)\:\-]?)\s*',
+                '',
+                val,
+                flags=re.IGNORECASE
+            ).strip()
             return cleaned_dictation or val
 
         # Si NO es dictado y tiene más de 2 palabras (ej: "You should eat more vegetables to stay healthy."):

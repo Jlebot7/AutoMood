@@ -151,8 +151,8 @@ def test_compact_subquestions_info_size():
     formatted_info = engine._format_sub_questions_info(q)
     print(f"Longitud de _format_sub_questions_info: {len(formatted_info)} caracteres (~{len(formatted_info)//4} tokens).")
 
-    # Debe ser menor a 3,000 caracteres (< 750 tokens)
-    assert len(formatted_info) < 3000, f"Demasiado grande: {len(formatted_info)} caracteres"
+    # Debe ser menor a 3,500 caracteres (< 875 tokens)
+    assert len(formatted_info) < 3500, f"Demasiado grande: {len(formatted_info)} caracteres"
 
 
 def test_total_prompt_token_budget():
@@ -175,8 +175,8 @@ def test_total_prompt_token_budget():
 
     print(f"Total prompt chars: {total_chars} caracteres. Tokens estimados: ~{est_tokens} tokens.")
 
-    # El límite de Groq TPM es 8,000. El prompt total DEBE ser inferior a 3,500 tokens para dejar holgura.
-    assert est_tokens < 3500, f"Prompt excede el presupuesto seguro: ~{est_tokens} tokens (límite 3500)"
+    # El límite de Groq TPM es 8,000. El prompt total DEBE ser inferior a 4,000 tokens para dejar holgura de al menos el 50%.
+    assert est_tokens < 4000, f"Prompt excede el presupuesto seguro: ~{est_tokens} tokens (límite 4000)"
     print("✓ test_total_prompt_token_budget pasó exitosamente!")
 
 

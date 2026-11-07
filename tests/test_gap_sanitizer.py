@@ -78,6 +78,38 @@ def test_sanitize_dictation_sentences_preserved():
         gap_num=38
     )
     assert clean_38 == "We should leave now before it gets dark.", f"Se esperaba oración intacta, se obtuvo '{clean_38}'"
+
+    # Prueba con formato "Conversation 1: ..."
+    conv_prompt = "Listening Dictation: Listen to the conversations and transcribe each one."
+    raw_conv = "Conversation 1: Could you please help me with this heavy box?"
+    clean_conv = MoodleAutomator.sanitize_gap_text(
+        raw_conv,
+        sq_prompt="[HUECO 1] Conversation 1",
+        full_prompt=conv_prompt,
+        gap_num=1
+    )
+    assert clean_conv == "Could you please help me with this heavy box?", f"Se esperaba oración completa de conversación, se obtuvo '{clean_conv}'"
+
+    # Prueba con formato "Number 2: ..."
+    raw_num = "Number 2: You must not smoke inside the building."
+    clean_num = MoodleAutomator.sanitize_gap_text(
+        raw_num,
+        sq_prompt="[HUECO 2] Number 2:",
+        full_prompt=conv_prompt,
+        gap_num=2
+    )
+    assert clean_num == "You must not smoke inside the building.", f"Se esperaba oración completa de Number 2, se obtuvo '{clean_num}'"
+
+    # Prueba con formato "Sentence 3. ..."
+    raw_sent = "Sentence 3. They would always visit their grandparents on Sundays."
+    clean_sent = MoodleAutomator.sanitize_gap_text(
+        raw_sent,
+        sq_prompt="[HUECO 3] Sentence 3.",
+        full_prompt=conv_prompt,
+        gap_num=3
+    )
+    assert clean_sent == "They would always visit their grandparents on Sundays.", f"Se esperaba oración completa de Sentence 3, se obtuvo '{clean_sent}'"
+
     print("✓ test_sanitize_dictation_sentences_preserved pasó correctamente.")
 
 

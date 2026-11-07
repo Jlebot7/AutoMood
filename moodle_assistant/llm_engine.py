@@ -60,11 +60,19 @@ REGLAS DE ORO:
      * DEBES seleccionar EXCLUSIVAMENTE una de las opciones listadas en 'Opciones: [...]'.
      * NUNCA inventes o conjugues verbos fuera de la lista dada (ej. no pongas 'ran' si las opciones son 'could', 'should', 'would').
 
-5. EJERCICIOS DE DICTADO Y AUDIO (Dictation & Listening):
-   - Si la pregunta incluye una o varias transcripciones de audio ('🎧 Transcripción de audio (Whisper) ...'):
-     * Analiza las etiquetas de archivo y el contenido de cada audio. Si hay audios de dictado (ej. 'ttsreader', oraciones numeradas), asócialos con la sección correspondiente.
-     * En ejercicios de DICTADO (donde se solicita transcribir oraciones completas dictadas): transcribe fielmente en el hueco correspondiente cada una de las oraciones dictadas que escuchaste, con mayúscula inicial y ortografía correcta.
-     * En ejercicios de comprensión auditiva con opciones: basa tus respuestas con exactitud en lo que dice el audio correspondiente.
+5. EJERCICIOS DE DICTADO Y TRANSCRIPCIÓN DE AUDIO (Dictation / Listen and Write):
+   - En ejercicios de DICTADO (donde se escucha un audio de oraciones o conversaciones dictadas y se debe escribir):
+     * ¡REGLA DE ORO DE DICTADO: ESCRIBE LA FRASE COMPLETA!
+       - En dictados DEBES escribir la ORACIÓN O DIÁLOGO COMPLETO tal cual fue dictado en el audio.
+       - ¡ESTÁ ESTRICTAMENTE PROHIBIDO escribir solo una palabra o un verbo modal en huecos de dictado!
+     * ENUMERACIÓN EN EL AUDIO (1, 2, 3... / Conversation 1, 2... / Number 1, 2...):
+       - En el audio las oraciones vienen explícitamente enumeradas (ej: '1.', '2.', '3...', 'Number 1...', 'Sentence 1...', o 'Conversation 1...', 'Conversation 2...', etc.).
+       - NO SE REQUIERE INTERPRETAR, COMPRENDER NI RAZONAR: Transcribe TAL CUAL lo que se dice en el audio, palabra por palabra, respetando el orden secuencial estricto en cada hueco correspondiente:
+         * La frase 1 / Conversation 1 corresponde al primer hueco de dictado.
+         * La frase 2 / Conversation 2 corresponde al segundo hueco de dictado, y así sucesivamente en orden correlativo 1 a 1.
+     * FORMATO LIMPIO:
+       - Transcribe la oración completa con mayúscula inicial, ortografía y signos de puntuación correctos según lo escuchado.
+       - No repitas el número o prefijo ('1.' o 'Conversation 1:') dentro del campo si el enunciado ya lo incluye antes del hueco; escribe únicamente el texto de la oración dictada (ej: si el hueco dice '1. [HUECO 37]', en matching_answers escribe: "sub37": "He ran much faster when he was younger.").
 
 6. PRECISIÓN ACADÉMICA MÁXIMA: Elige la respuesta inequívocamente correcta según el marco teórico estándar de la disciplina.
 7. FORMATO ESTRICTO: DEBES responder ÚNICAMENTE con un objeto JSON válido que cumpla exactamente la estructura solicitada. NUNCA agregues texto conversacional antes o después del JSON.
@@ -86,7 +94,7 @@ IMPORTANTE - LECTURA INTEGRAL, LÍNEA TEMPORAL, EJEMPLOS Y CONTRACCIONES:
 2. DETECCIÓN DE EJEMPLOS Y CONSIGNAS: Si el enunciado contiene un ejemplo modelo (ej. 'Example:', 'e.g.', 'Modelo:', '[0]'), examina su morfología y estilo, y replica exactamente ese mismo patrón y formato en todas tus respuestas.
 3. ¡REGLA DE HUECOS EN LÍNEA!: Para huecos dentro de oraciones escribe ÚNICAMENTE la palabra o verbo modal faltante (ej. 'should', 'could', 'didn't have'). ¡ESTÁ PROHIBIDO escribir la oración completa!
 4. ¡REGLA DE DESPLEGABLES!: Selecciona ÚNICAMENTE una de las opciones listadas en 'Opciones: [...]'. No inventes opciones fuera de la lista.
-5. ¡EJERCICIOS DE DICTADO!: Para huecos de dictado (donde se transcriben oraciones completas escuchadas en audio), escribe fielmente la oración dictada correspondiente.
+5. ¡EJERCICIOS DE DICTADO (AUDIO)!: Para huecos de dictado (donde se escucha un audio con oraciones numeradas o 'Conversation X'): DEBES escribir la FRASE COMPLETA (NUNCA una sola palabra o verbo). No se requiere interpretar ni razonar: transcribe TAL CUAL lo que se escucha en orden 1 a 1 para cada hueco respectivo.
 6. Cada hueco en el texto está etiquetado como [HUECO N: sub_id]. Relaciona cada hueco con las opciones disponibles abajo.
 7. Respeta la concordancia temporal (hechos del pasado histórico en Simple Past vs cambios de la era actual en Present Perfect).
 8. REGLA DE CONTRACCIONES: Las contracciones afirmativas ('ve, 's) NUNCA se usan tras sustantivos (ej. 'Computers have become', 'Times have changed', 'technology has changed'). Las contracciones son para formas negativas ('didn't', 'weren't', 'haven't').
@@ -120,7 +128,7 @@ IMPORTANTE - LECTURA INTEGRAL, LÍNEA TEMPORAL, EJEMPLOS Y CONTRACCIONES:
 2. DETECCIÓN DE EJEMPLOS Y CONSIGNAS: Si en el enunciado o lectura se incluye un ejemplo modelo (ej. 'Example:', 'e.g.', 'Sample:', 'Modelo:', 'Answer 0'), analízalo con prioridad para determinar exactamente la regla gramatical, si incluye o no sujeto, y el patrón de formato esperado por el calificador automático. Replica ese patrón con exactitud.
 3. ¡REGLA DE HUECOS EN LÍNEA!: Para huecos dentro de oraciones escribe ÚNICAMENTE la palabra o verbo modal faltante (ej. 'should', 'could', 'didn't have'). ¡ESTÁ PROHIBIDO escribir la oración completa!
 4. ¡REGLA DE DESPLEGABLES!: Selecciona ÚNICAMENTE una de las opciones listadas en available_options. No inventes opciones fuera de la lista.
-5. ¡EJERCICIOS DE DICTADO!: Para huecos de dictado (donde se transcriben oraciones completas escuchadas en audio), escribe fielmente la oración dictada correspondiente.
+5. ¡EJERCICIOS DE DICTADO (AUDIO)!: Para huecos de dictado (donde se escucha un audio con oraciones numeradas o 'Conversation X'): DEBES escribir la FRASE COMPLETA (NUNCA una sola palabra o verbo). No se requiere interpretar ni razonar: transcribe TAL CUAL lo que se escucha en orden 1 a 1 para cada hueco respectivo.
 6. Identifica la línea temporal (párrafos de hechos concluidos en el pasado vs párrafos de cambios en la era actual o presente).
 7. Asegura coherencia y concordancia gramatical entre cada hueco y la totalidad de la lectura.
 8. REGLA DE CONTRACCIONES: Las contracciones afirmativas ('ve, 's) NUNCA se usan tras sustantivos (ej. 'Computers have become', 'Times have changed', 'technology has changed'). Las contracciones aplican a formas negativas ('didn't', 'weren't', 'haven't').
@@ -234,22 +242,39 @@ class LLMEngine:
             return ""
         lines = [
             "- Elementos a responder en matching_answers (asócialos con la posición [HUECO N: sub_id] en el enunciado):",
-            "  (¡REGLA FUNDAMENTAL: Para huecos dentro de oraciones escribe ÚNICAMENTE la palabra o verbo modal faltante. NUNCA escribas la oración completa!)"
+            "  (¡REGLA FUNDAMENTAL: Para huecos dentro de oraciones escribe ÚNICAMENTE la palabra o verbo modal faltante. NUNCA la oración completa!)",
+            "  (¡REGLA DE DICTADO: Para huecos de dictado escribe la FRASE COMPLETA tal cual se dicta en el audio enumerado 1 a 1!)"
         ]
         has_embedded_gaps = "[HUECO " in q.prompt or "[HUECO_" in q.prompt
+        prompt_lower = (q.prompt or "").lower()
+        has_audio = bool(q.media_context.has_audio or q.media_context.audio_transcriptions)
+        dictation_keywords = ["dictat", "dictado", "listen and write", "listen and type", "write the sentence", "write what you hear", "transcribe", "conversation"]
+        has_dictation_context = has_audio and any(kw in prompt_lower for kw in dictation_keywords)
+
         for idx, sq in enumerate(q.sub_questions):
             gap_num = idx + 1
             if sq.options:
                 opts = [f'"{o.text.strip() or o.value.strip()}"' for o in sq.options if (o.text.strip() or o.value.strip())]
                 lines.append(f'  * [HUECO {gap_num}] "{sq.sub_id}": [{", ".join(opts)}]')
             else:
-                if not has_embedded_gaps and sq.prompt and len(sq.prompt.strip()) > 0:
+                is_dictation_gap = False
+                if has_dictation_context:
+                    clean_sq = re.sub(r'\[HUECO \d+\]', '', sq.prompt or '').strip()
+                    if (len(clean_sq) < 15 or 
+                        re.match(r'^(?:(?:conversation|number|sentence)\s*\d+[\.:\-]?|\d+[\.\)]?)$', clean_sq, re.I)):
+                        is_dictation_gap = True
+                    elif re.search(rf'\[HUECO\s+{gap_num}(?::[^\]]+)?\]\s*$', q.prompt, re.MULTILINE):
+                        is_dictation_gap = True
+
+                if is_dictation_gap:
+                    lines.append(f'  * [HUECO {gap_num}] "{sq.sub_id}": (Dictado - Transcribe la frase completa)')
+                elif not has_embedded_gaps and sq.prompt and len(sq.prompt.strip()) > 0:
                     ctx = sq.prompt.strip()
                     if len(ctx) > 80:
                         ctx = ctx[:77] + "..."
                     lines.append(f'  * [HUECO {gap_num}] "{sq.sub_id}": (Texto libre) | Contexto: "{ctx}"')
                 else:
-                    lines.append(f'  * [HUECO {gap_num}] "{sq.sub_id}": (Texto libre)')
+                    lines.append(f'  * [HUECO {gap_num}] "{sq.sub_id}": (Texto libre - Solo palabra o modal)')
         return "\n".join(lines)
 
     def _clean_json_response(self, text: str) -> str:
